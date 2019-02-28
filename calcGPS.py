@@ -16,6 +16,8 @@ import subprocess
 import argparse
 import math
 import string
+import random
+import multiprocessing as mp
 from tempfile import NamedTemporaryFile
 
 ###########################
@@ -27,7 +29,7 @@ def get_settings():
     parser.add_argument("-c","--chr",help="0-based column with chromosome",type=int,default=1)
     parser.add_argument("-p","--pos",help="0-based column with end position of vairant",type=int,default=3)
     parser.add_argument("-v","--vcf",help="VCF with genetic data",type=str,required=True)
-    parser.add_argument("-k","--chunk",help="Chunk each .dose file into chunks of size X for parallelization",default=0)
+    parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     args=parser.parse_args()
     return args
@@ -115,6 +117,9 @@ def readSamples(vcf):
     return ddict,cdict,sampleList
 
 def flipStrand(allele):
+    """
+    Flip to complementary allele
+    """
     if allele=="A":
         return "T"
     elif allele=="T":
@@ -128,12 +133,13 @@ def flipStrand(allele):
         return None
 
 def readWeights(f,c,p):
-
+    """
+    Read file with weights from LDpred. Write into temporary bed file. 
+    """
     #initialize temporary file
     sys.stderr.write("Writing temporary file for marker names in bed format\n")
     marker_bed = NamedTemporaryFile(delete=True)
     with open(marker_bed.name, 'w') as tmp:
-
         
         #open file with weights
         command=open_zip(f)
@@ -145,21 +151,37 @@ def readWeights(f,c,p):
                     lineList=ls.split() #assumes whitespace delimiter, space or tab
                     counter+=1
                     tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
+                    tmp.write("\n")
         f.close()
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
+def callQuery(vcf,tmp,out,chunk,counter):
+    """
+    Turn VCF into a .dose format for specific list of markers. Assumes path to bcftools.
+    """
+    #chunking option, make temporary files for the chunuks and call bcftools on each and then close them
+    if chunk > 0:
+        print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %d .dose files\n" % (vcf,chunk)
+        splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        chunkString="/".join(["l",str(chunk)]) #l/N
+        subprocess.call(["split",tmp.name,splitPrefix,"-n",chunkString,"-d","--additional-suffix=.bed"])
+        tmpFileList=[]
+        outFileList=[]
+        for i in range(chunk):
+            tmpFileList.append(''.join([splitPrefix,"%02d" % i,".bed"]))
+            outFileList.append(".".join([out,"%02d" % i,"dose"]))
+        #TO DO: multiprocessing or threading to speed this up
+        for j in range(len(tmpFileList)):
+            subprocess.call(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
+            subprocess.call(["rm",tmpFileList[j]])
 
-def callQuery(vcf,tmp,out):
-    print >> sys.stderr, "Performring bcftools query to pull markers frorm VCF %s\n" % vcf
-    outName=".".join([out,"dose"])
-    subprocess.call(["bcftools","query",vcf,"-R",tmp.name,"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n'","-o",outName])
-    #assumes path to bcftools
+    #no chunking
+    elif chunk==0:
+        outName=".".join([out,"dose"])
+        print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %s\n" % (vcf,outName)
+        subprocess.call(["bcftools","query",vcf,"-R",tmp.name,"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outName])
     return 0
-
-def callChunk(out,chunk,counterr):
-    outName=".".join([out,"dose"])
-    #chuunk file into files of length X
 
 
     
@@ -176,10 +198,8 @@ def main():
     tmp_obj,counter=readWeights(args.file,args.chr, args.pos)
 
     #writes .dose file from VCF, extracts markers from weight file
-    callQuery(args.vcf,tmp_obj,args.output)
+    #may chunk each .dose file into X chunks
+    callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter)
 
-    #chunks each .dose file into 10K chunks for parallelization
-    if (args.chunk > 0):
-        callChunuk(args.output,args.chunk,counter)
-
+    
 main()
