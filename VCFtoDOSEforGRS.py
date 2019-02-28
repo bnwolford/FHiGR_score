@@ -48,74 +48,30 @@ def open_zip(f):
         command=open(f,"rt")
         print >> sys.stderr, "Opening file %s\n" % f
     return command
-
-def multiallelic(dict):
-    keys=dict.keys()
-    marker=[]
-    if len(keys) == 2: #handle tri allelic SNP
-        m1=dict[keys[0]]
-        m2=dict[keys[1]]
-        maf1=m1[7].split(";")[1]
-        maf2=m2[7].split(";")[1]
-        #take the marker with the larger maf
-        if float(maf1.split("=")[1]) < float(maf2.split("=")[1]): 
-            marker=dict[keys[1]]
-        elif float(maf1.split("=")[1]) > float(maf2.split("=")[1]):
-            marker=dict[keys[0]]
-        else:
-            sys.stderr.write("Failure to handle multiallelic SNP\n")
-    elif len(keys) == 1: 
-        marker=dict[keys[0]]
-    else:
-        sys.stderr.write("Failure to handle potential multiallelic SNP\n")
-    return marker
-                    
-
-#return dosage in terms of effect allele from GWAS
-def checkAllele(e,r,a,dos):
-    #sys.stderr.write("Checking effect allele\n")
-    #print(e+"\t"+a+"\t"+r+"\t"+dos)
-    if r == flipStrand(a) and a == flipStrand(r): #ambiguous genotype
-        return 0 
-    d=float(dos)
-    if a==e:
-        return d #dosage from vcf in terms of alternate allele 
-    elif r==e:
-        return 2-d #make dosage from vcf in terms of reference allele
-    elif r!=e and a!=e:
-        new_r=flipStrand(r)
-        new_a=flipStrand(a)
-        if new_r==e:
-            return 2-d 
-        elif new_a==e:
-            return d
-        else:
-            sys.stderr.write("Situation not accounted for\n")
-            return None
-    else:
-        sys.stderr.write("Situation not accounted for\n")
-        return None
     
 
-def readSamples(vcf):
-    sys.stderr.write("Reading in sample names from vcf\n")
-    vcf=vcf.replace("$","01") #assumes sample list is the same in all chromosome VCFs
-
-    #intialize containers
-    ddict={}
-    cdict={}
-    sampleList=[]
-
+def readSamples(vcf,out):
+    """
+    Make sample file that corresponds to the vcf. To be used later with .dose files. Has header FID and IID.
+    """
+    outName=".".join([out,"sample"])
+    print >> sys.stderr,"Reading in sample names from vcf to %s\n" % outName
+    #open sample file for writing
+    sampleFile=open(outName,"w")
+    sampleFile.write("\t".join(["FID","IID"]))
+    sampleFile.write("\n")
+    
     #read samples from vcf
     proc=subprocess.Popen(["bcftools","query","-l",vcf],stdout=subprocess.PIPE)
     output=proc.stdout.read()
+    
     for sampleID in output.split("\n"):
         if len(sampleID) > 0: #make sure sampleID is real, not new line
-            ddict[sampleID]=0 #make key in dictionary for data
-            cdict[sampleID]=0 #make key in dictionary for snp counts
-            sampleList.append(sampleID) #make ordered list of samples
-    return ddict,cdict,sampleList
+            sampleFile.write("\t".join([sampleID,sampleID]))
+            sampleFile.write("\n")
 
+    sampleFile.close()
+            
 def flipStrand(allele):
     """
     Flip to complementary allele
@@ -197,6 +153,9 @@ def main():
     #makes bed file of markrers frorm weight file
     tmp_obj,counter=readWeights(args.file,args.chr, args.pos)
 
+    #make sample file from VCF
+    readSamples(args.vcf,args.output)
+    
     #writes .dose file from VCF, extracts markers from weight file
     #may chunk each .dose file into X chunks
     callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter)
