@@ -128,9 +128,23 @@ def callQuery(vcf,tmp,out,chunk,counter):
             tmpFileList.append(''.join([splitPrefix,"%02d" % i,".bed"]))
             outFileList.append(".".join([out,"%02d" % i,"dose"]))
         #TO DO: multiprocessing or threading to speed this up
+        cmds_list=[]
+        procs_list=[]
+        procs2_list=[]
+        rm_list=[]
+        #for j in range(len(tmpFileList)):
+         #   subprocess.call(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
+          #  subprocess.call(["rm",tmpFileList[j]])
         for j in range(len(tmpFileList)):
-            subprocess.call(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
-            subprocess.call(["rm",tmpFileList[j]])
+            cmds_list.append(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
+            rm_list.append(["rm",tmpFileList[j]])
+        for k in range(len(cmds_list)):
+            procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+            procs2_list.append(subprocess.Popen(rm_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+        for proc in procs_list: #run bcftools parallel
+            proc.wait()
+        for proc2 in procs2_list: #run rm of tmp bed files parallel
+            proc2.wait()
 
     #no chunking
     elif chunk==0:
