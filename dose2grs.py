@@ -1,4 +1,9 @@
 #!/usr/bin/python3
+
+### Written by Dr. Ida Surakka in 2018
+### Revised by Brooke Wolford in March 2019
+
+
 '''
 Created on 24.1.2018
 Class to read in .dose file and write out dosage file
@@ -218,14 +223,12 @@ class Impute2Dosage(object):
 
     def readSNPWeights(self):
         """
-        Reads the weights file, finds matching SNP and sets the weight for it.
+        Reads the weights file, finds matching SNP and sets the weight for it. Assumes header, either text or #.
         """
-        header = True
+
         with open(self.args.snp_weights_fn) as weights_f:
             for line in weights_f:
-                if header:
-                    header = False
-                else:
+                if line[0].isdigit(): #expects first value will be a number, not text or #
                     found_match = False
                     words = line.split()
                     chrom = words[3]
@@ -300,7 +303,7 @@ class Impute2Dosage(object):
                 row += " %s" % self.snps[snp_id].getDosage(i)
             out_f.write("%s\n" % row)
             if i % 100 == 0:
-                print ("\rWriting row no %d to file %s" % (i, self.args.output_fn), end="")
+                print ("\rWriting row number %d to file %s" % (i, self.args.output_fn), end="")
                 sys.stdout.flush()
             i += 1
         print ("Printed sample file %s" % self.args.output_fn)
@@ -334,7 +337,7 @@ class Impute2Dosage(object):
                     weight_sum += weighted_dosage
             out_f.write("%s %f\n" % (row, weight_sum))
             if i % 10000 == 0:
-                print ("\rWriting row no %d to file %s" % (i, self.args.output_fn), end="")
+                print ("\rWriting row number %d to file %s" % (i, self.args.output_fn), end="")
                 sys.stdout.flush()
             i += 1
 #        if len(failed_snp_ids) > 0:
