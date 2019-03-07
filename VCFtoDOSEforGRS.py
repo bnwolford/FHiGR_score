@@ -29,6 +29,7 @@ def get_settings():
     parser.add_argument("-c","--chr",help="0-based column with chromosome",type=int,default=1)
     parser.add_argument("-p","--pos",help="0-based column with end position of vairant",type=int,default=3)
     parser.add_argument("-v","--vcf",help="VCF with genetic data",type=str,required=True)
+    parser.add_argument("-vc","--vcf_chrom",help="Chromosome number of the VCF provided",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     args=parser.parse_args()
@@ -88,7 +89,7 @@ def flipStrand(allele):
         sys.stderr.write("Allele is %s\n" % allele)
         return None
 
-def readWeights(f,c,p):
+def readWeights(f,c,p,v):
     """
     Read file with weights from LDpred. Write into temporary bed file. 
     """
@@ -105,9 +106,15 @@ def readWeights(f,c,p):
                 ls=line.rstrip()
                 if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit 
                     lineList=ls.split() #assumes whitespace delimiter, space or tab
-                    counter+=1
-                    tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
-                    tmp.write("\n")
+                    if v > 0: #vcf is just for one chromosome so we can ignore weights from other chrom
+                        if v==int(lineList[c]): 
+                            counter+=1
+                            tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
+                            tmp.write("\n")
+                    else: #vcf is for all chromosomes 
+                        counter+=1
+                        tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
+                        tmp.write("\n")
         f.close()
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
@@ -163,8 +170,8 @@ def main():
     #get arguments
     args = get_settings()
 
-    #makes bed file of markrers frorm weight file
-    tmp_obj,counter=readWeights(args.file,args.chr, args.pos)
+    #makes bed file of markrers from weight file
+    tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.vcf_chrom)
 
     #make sample file from VCF
     readSamples(args.vcf,args.output)
