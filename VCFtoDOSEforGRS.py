@@ -116,7 +116,7 @@ def readWeights(f,c,p,v):
                         tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
                         tmp.write("\n")
         f.close()
-    print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter)
+    print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
 def callQuery(vcf,tmp,out,chunk,counter):
