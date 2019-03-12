@@ -148,7 +148,7 @@ class Impute2Dosage(object):
         for fn in files_to_check:
             if fn != None:
                 if not os.path.isfile(fn):
-                    print ("%s is not a file!" % fn)
+                    print ("%s is not a file!\n" % fn)
                     return False
         return True 
                     
@@ -160,7 +160,7 @@ class Impute2Dosage(object):
         """
         if self.args.sample_fn == None:
             if self.args.verbose:
-                print ("Opening file %s for output" % self.args.output_fn)
+                print ("Opening file %s for output\n" % self.args.output_fn)
             out_f = open(self.args.output_fn, "w")
         error_f = None
         with open(self.args.input_fn) as gen_f:
@@ -185,16 +185,16 @@ class Impute2Dosage(object):
                         snp_id = snp.getUniquePosID()
                         self.snps[snp_id] = snp
                 if i % 1000 == 0:
-                    print ("\rReading row no %d in file %s" % (i, self.args.input_fn), end="")
+                    print ("\rReading row number %d in file %s\n" % (i, self.args.input_fn), end="")
                     sys.stdout.flush()
                 i += 1
         if error_f != None:
             error_f.close()
         if self.args.verbose:
-            print ("\nFile %s read" % self.args.input_fn)
+            print ("File %s read\n" % self.args.input_fn)
         if self.args.sample_fn == None:
             out_f.close()
-            print ("File %s written" % self.args.output_fn)
+            print ("File %s written\n" % self.args.output_fn)
         return
             
     def readSampleFile(self):
@@ -211,9 +211,9 @@ class Impute2Dosage(object):
                     words = line.split()
                     if len(words) < 2:
                         # too short data row, give error and stop
-                        print("Sample file %s has row with too few elements" % self.args.sample_fn)
-                        print("Every row has to have FID & IID")
-                        print("%s" % line)
+                        print("Sample file %s has row with too few elements\n" % self.args.sample_fn)
+                        print("Every row has to have FID & IID\n")
+                        print("%s\n" % line)
                         sys.exit()
                     else:
                         # ok data row - store only 2 first elements          
@@ -250,7 +250,7 @@ class Impute2Dosage(object):
                                 if found_match:
                                     break
                         if not found_match and self.args.verbose:
-                            print ("No match found for entry: %s" % line)
+                            print ("No match found for entry: %s\n" % line)
      
     def checkAlleleMatch(self, allele, weight, snp_id):
         """
@@ -303,10 +303,10 @@ class Impute2Dosage(object):
                 row += " %s" % self.snps[snp_id].getDosage(i)
             out_f.write("%s\n" % row)
             if i % 100 == 0:
-                print ("\rWriting row number %d to file %s" % (i, self.args.output_fn), end="")
+                print ("Writing row number %d to file %s\n" % (i, self.args.output_fn))
                 sys.stdout.flush()
             i += 1
-        print ("Printed sample file %s" % self.args.output_fn)
+        print ("Printed sample file %s\n" % self.args.output_fn)
         
     def printWeightedSampleFile(self, samples):
         """
@@ -337,7 +337,7 @@ class Impute2Dosage(object):
                     weight_sum += weighted_dosage
             out_f.write("%s %f\n" % (row, weight_sum))
             if i % 10000 == 0:
-                print ("\rWriting row number %d to file %s" % (i, self.args.output_fn), end="")
+                print ("Writing row number %d to file %s\n" % (i, self.args.output_fn))
                 sys.stdout.flush()
             i += 1
 #        if len(failed_snp_ids) > 0:
@@ -347,14 +347,14 @@ class Impute2Dosage(object):
 #            for snp_id in failed_snp_ids:
 #                out_f.write("%s\n" % snp_id)
 #            out_f.close()
-        print ("Printed weighted sample file %s" % self.args.output_fn)
+        print ("Printed weighted sample file %s\n" % self.args.output_fn)
         
     def main(self):
 #         if self.args.snp_weights_fn != None and self.args.chromosome_no == None:
 #             print ("Chromosome number (--chromosome_no) is obligatory when weighted dosages are calculated")
 #             return
         if self.args.snp_weights_fn != None and self.args.sample_fn == None:
-            print("Cannot calculate SNP weights without sample file (--sample_fn)")
+            print("Cannot calculate SNP weights without sample file (--sample_fn)\n")
             return
         ok = self.checkInputFiles()
         if not ok:
