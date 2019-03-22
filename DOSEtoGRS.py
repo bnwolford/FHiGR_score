@@ -250,7 +250,7 @@ class Impute2Dosage(object):
                                 if found_match:
                                     break
                         if not found_match and self.args.verbose:
-                            print ("No match found for entry: %s\n" % line)
+                            print ("No match found for entry: %s" % line)
      
     def checkAlleleMatch(self, allele, weight, snp_id):
         """
