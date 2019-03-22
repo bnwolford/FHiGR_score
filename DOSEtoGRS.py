@@ -13,6 +13,7 @@ import argparse
 from collections import OrderedDict
 import os
 import sys
+import time
 
 __version__= "1.0"
 
@@ -353,6 +354,7 @@ class Impute2Dosage(object):
 #         if self.args.snp_weights_fn != None and self.args.chromosome_no == None:
 #             print ("Chromosome number (--chromosome_no) is obligatory when weighted dosages are calculated")
 #             return
+        time.sleep(60)
         if self.args.snp_weights_fn != None and self.args.sample_fn == None:
             print("Cannot calculate SNP weights without sample file (--sample_fn)\n")
             return
