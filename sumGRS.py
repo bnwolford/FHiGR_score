@@ -115,7 +115,7 @@ def output(o,d,list_size):
     #open output file
     outname=".".join([o,"txt"])
     out_file=open(outname,"w")
-
+    out_file.write("\t".join(["IID","FID","GPS\n"]))
     #sum across the nested dictionary to get 1 value per ID
     for ids in d.keys():
         if len(d[ids]) != list_size: #check that all sub sums are represented 
