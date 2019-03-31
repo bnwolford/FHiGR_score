@@ -32,17 +32,25 @@ def get_settings():
 ###############################
 
 def open_zip(f):
-    if ".gz" in f:
-        command=gzip.open(f,"rt")
-        print >> sys.stderrr, "Opening gzipped file %s\n" % f
-    elif f == "-":
-        sys.exit("Cannot read file from stdin\n")
+    exists=os.path.isfile(f)
+    if exists:
+        if ".gz" in f:
+            command=gzip.open(f,"rt")
+            print >> sys.stderrr, "Opening gzipped file %s\n" % f
+        elif f == "-":
+            sys.exit("Cannot read file from stdin\n")
+        else:
+            command=open(f,"rt")
+            print >> sys.stderr, "Opening file %s\n" % f
+        return command
     else:
-        command=open(f,"rt")
-        print >> sys.stderr, "Opening file %s\n" % f
-    return command
+        print >> sys.stderr, "%s does not exist\n" %f
+        return 0
 
 def check(config):
+    """
+    Check that all the .gen files in the config file exist 
+    """
     file_list=[]
     command=open_zip(config)
     with command as f:
@@ -52,8 +60,11 @@ def check(config):
         print >> sys.stderr, "Config lists %s files\n" % len(file_list)
         for fn in file_list:
             ok=os.path.isfile(fn)
-        if not ok:
-            print >> sys.stderr, "Expected %s to exist but it does not\n" % fn
+            if not ok:
+                print >> sys.stderr, "Expected %s to exist but it does not\n" % fn
+            elif ok:
+                if os.path.getsize(fn) == 0:
+                    print >> sys.stderr, "%s is an empty file\n" % fn
     return(file_list)
 
 def read_samples(sample):
@@ -70,36 +81,49 @@ def read_samples(sample):
                 next
             else:
                 ls=line.rstrip()
-                sample_list.append(".".join(ls)) #put FID.IID values in a list
+                lineList=ls.split("\t") #assume tab seperator in .sample file from VCFtoDOSEforGRS.py
+                sample_list.append(".".join(lineList[0:2])) #put FID.IID values in a list
     return sample_list
     
 def merge(fl,sl):
     """
     Looks at all .gen files matching the string given. Returns dictionary with information and potentially flags any missing chromosomes or chunks.
     """
-    ddict={}
+    ddict={} #initialize dictionary
+    for sample in sl:
+        ddict[sample]=[] #initialize list
+
     for gen in fl:
         command=open_zip(gen)
-        with command as f:
-            for line in f:
-                ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
-                ids=".".join(ls[2:])
-                ddict[ids][gen]=ls[3]
-        print ddict
-    #check that IDs match those in samples and that each ID has X values summed to create the total
-    
-    return ddict
+        count=0
+        if command!=0: #if file exists
+            with command as f:
+                for line in f:
+                    if count==0: #skip 1 line header
+                        count+=1
+                        next
+                    else:
+                        ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
+                        lineList=ls.split(" ")
+                        ids=".".join(lineList[0:2])
+                        ddict[ids].append(lineList[2])
+                        
+    return(ddict)
 
-def output(o,d):
+def output(o,d,list_size):
+    
+    #open output file
+    outname=".".join([o,"txt"])
+    out_file=open(outname,"w")
 
     #sum across the nested dictionary to get 1 value per ID
     for ids in d.keys():
-        for GRS in d[ids].keys():
-            print GRS
-            
-    outname=".".join([o,"txt"])
-    out_file=open(outname,"w")
-    out_file.write("test")
+        if len(d[ids]) != list_size: #check that all sub sums are represented 
+            print >> sys.stderr, "%s does not have expected number (%d) of sub-chunks to sum\n"  % (ids,list_size)
+        GRS=sum(float(sub_sum) for sub_sum in d[ids])
+        id_1,id_2=ids.split(".")
+        out_file.write("\t".join([id_1,id_2,str(GRS)])+"\n")
+
     return 0
 
     
@@ -122,7 +146,7 @@ def main():
     data=merge(file_list,sample_list)
 
     #write output
-    output(args.output,data)
+    output(args.output,data,len(file_list))
 
     
 
