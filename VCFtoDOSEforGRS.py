@@ -28,7 +28,8 @@ def get_settings():
     parser.add_argument("-f","--file",help="File with variants and weights",type=str,required=True)
     parser.add_argument("-c","--chr",help="0-based column with chromosome",type=int,default=1)
     parser.add_argument("-p","--pos",help="0-based column with end position of vairant",type=int,default=3)
-    parser.add_argument("-v","--vcf",help="VCF with genetic data",type=str,required=True)
+    parser.add_argument("-v","--vcf",help="VCF with genetic data",type=str)
+    parser.add_argument("-b","--bgen",help="BGEN with  genetic data",type=str)
     parser.add_argument("-vc","--vcf_chrom",help="Chromosome number of the VCF provided",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
@@ -170,17 +171,26 @@ def main():
     #get arguments
     args = get_settings()
 
-    #makes bed file of markrers from weight file
-    tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.vcf_chrom)
-
-    #make sample file from VCF
-    readSamples(args.vcf,args.output)
+    #VCF data
+    if args.bgen == None:
     
-    #writes .dose file from VCF, extracts markers from weight file
-    #may chunk each .dose file into X chunks
-    callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter)
+        #makes bed file of markrers from weight file
+        tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.vcf_chrom)
 
+        #make sample file from VCF
+        readSamples(args.vcf,args.output)
     
+        #writes .dose file from VCF, extracts markers from weight file
+        #may chunk each .dose file into X chunks
+        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter)
+
+    else if  args.vcf == None:
+
+        x=5
+        #BGEN TO DOSE  IN CHUNKS
+
+    else: 
+        print>> sys.stderr,"Must provide --vcf or --bgen\nb"
 
     
 main()
