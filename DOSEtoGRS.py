@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 
-### Written by Dr. Ida Surakka in 2018
+### Written by Kimmo Pääkkönen
+### Revised by Dr. Ida Surakka in 2018
 ### Revised by Brooke Wolford in March 2019
 
-
 '''
-Created on 24.1.2018
 Class to read in .dose file and write out dosage file
 @author: isurakka
 '''
@@ -15,7 +14,7 @@ import os
 import sys
 import time
 
-__version__= "1.0"
+__version__= "1.1"
 
 class SNP(object):
     """
