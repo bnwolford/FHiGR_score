@@ -28,11 +28,13 @@ def get_settings():
     parser.add_argument("-f","--file",help="File with variants and weights",type=str,required=True)
     parser.add_argument("-c","--chr",help="0-based column with chromosome",type=int,default=1)
     parser.add_argument("-p","--pos",help="0-based column with end position of vairant",type=int,default=3)
-    parser.add_argument("-v","--vcf",help="VCF with genetic data",type=str)
-    parser.add_argument("-b","--bgen",help="BGEN with  genetic data",type=str)
+    parser.add_argument("-v","--vcf",help="VCF with genetic data. Will convert to .dose.",type=str)
+    parser.add_argument("-b","--bgen",help="BGEN with  genetic data. Will convert to .gen",type=str)
     parser.add_argument("-vc","--vcf_chrom",help="Chromosome number of the VCF provided",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
+    parser.add_argument("-q","--qctool",help="qctool path",type=str,default="/net/snowwhite/home/bwolford/qctool/build/release/qctool_v2.0.1")
+    parser.add_argument("-t","--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
     args=parser.parse_args()
     return args
 
@@ -73,22 +75,6 @@ def readSamples(vcf,out):
             sampleFile.write("\n")
 
     sampleFile.close()
-            
-def flipStrand(allele):
-    """
-    Flip to complementary allele
-    """
-    if allele=="A":
-        return "T"
-    elif allele=="T":
-        return "A"
-    elif allele=="C":
-        return "G"
-    elif allele=="G":
-        return "C"
-    else:
-        sys.stderr.write("Allele is %s\n" % allele)
-        return None
 
 def readWeights(f,c,p,v):
     """
@@ -120,7 +106,7 @@ def readWeights(f,c,p,v):
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
-def callQuery(vcf,tmp,out,chunk,counter):
+def callQuery(vcf,tmp,out,chunk,counter,bcftools):
     """
     Turn VCF into a .dose format for specific list of markers. Assumes path to bcftools.
     """
@@ -157,10 +143,14 @@ def callQuery(vcf,tmp,out,chunk,counter):
     elif chunk==0:
         outName=".".join([out,"dose"])
         print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %s\n" % (vcf,outName)
-        subprocess.call(["bcftools","query",vcf,"-R",tmp.name,"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outName])
+        subprocess.call([bcftools,"query",vcf,"-R",tmp.name,"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outName])
     return 0
 
 
+def bgenToGen(bgen,qctool,out):
+    outName=".".join([out,"gen"])
+    subprocess.call([qctool,"-g",bgen,"-incl-variants",BED,"-og",outName])
+    return 0
     
 #########################
 ########## MAIN #########
@@ -173,8 +163,8 @@ def main():
 
     #VCF data
     if args.bgen == None:
-    
-        #makes bed file of markrers from weight file
+        
+        #makes bed file of markers from weight file
         tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.vcf_chrom)
 
         #make sample file from VCF
@@ -182,15 +172,21 @@ def main():
     
         #writes .dose file from VCF, extracts markers from weight file
         #may chunk each .dose file into X chunks
-        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter)
+        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools)
 
+    #BGEN data 
     else if  args.vcf == None:
 
-        x=5
-        #BGEN TO DOSE  IN CHUNKS
+        if args.sample == None:
+            print >> sys.stderr, "Must provide sample file for .bgen\n"
+
+        #To Do: decide what to do about chunked bed file that would be the incl-varaints, chunking and no chunking option? parlalelize
+        #writes .gen from .bgen, extracts only markers from weight file
+        #may chunk each .bgen file into X chunks
+        bgenToGen(args.bgen,args.qctool,args.output)
 
     else: 
-        print>> sys.stderr,"Must provide --vcf or --bgen\nb"
+        print>> sys.stderr,"Must provide --vcf or --bgen but not both\n"
 
     
 main()
