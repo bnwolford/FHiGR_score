@@ -180,11 +180,44 @@ def readWeightsForBgen(f,c,p,n):
     return(marker_file,counter) #return tmp file object
                         
 
-def bgenToGen(bgen,qctool,out,pos):
+def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
+    """
+    Turn .bgen into a .gen format for specific list of markers. Chunks into given number of chunks and runs qctool command parallely.
+    """
+    #chunking option, make temporary files for the chunks and call qctool on each and then close them
+    if chunk > 0:
+        print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files\n" % (bgen,chunk)
+        splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
+        subprocess.call(["split",tmp.name,splitPrefix,"-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
+        tmpFileList=[]
+        outFileList=[]
+        for i in range(chunk):
+            tmpFileList.append(''.join([splitPrefix,"%02d" % i,".txt"])) #what temporary text files have the chunked markers
+            outFileList.append(".".join([out,"%02d" % i,"gen"]))  #what will the final .gen files be called
+        cmds_list=[]
+        procs_list=[]
+        procs2_list=[]
+        rm_list=[]
+        for j in range(len(tmpFileList)):
+            cmds_list.append([qctool,"-g",bgen,"-incl-positions",tmpFileList[j],"-og",outFileList[j]])
+            rm_list.append(["rm",tmpFileList[j]])
+        for k in range(len(cmds_list)):
+            procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+        for proc in procs_list: #run qctool parallel
+            proc.wait()
+        #clean up
+        print >> sys.stderr, "Removing temporary .txt files for chunking\n"
+        for r in range(len(rm_list)):
+            procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+        for proc2 in procs2_list: #run rm of tmp bed files parallel
+            proc2.wait()
 
-    
-    outName=".".join([out,"gen"])
-    subprocess.call([qctool,"-g",bgen,"-incl-positions",pos.name,"-og",outName])
+    #no chunking
+    elif chunk==0:
+        outName=".".join([out,"gen"])
+        print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %s\n" % (bgen,outName) 
+        subprocess.call([qctool,"-g",bgen,"-incl-positions",tmp.name,"-og",outName])
     return 0
     
 #########################
@@ -223,7 +256,7 @@ def main():
         #To Do: decide what to do about chunked bed file that would be the incl-varaints, chunking and no chunking option? parlalelize
         #writes .gen from .bgen, extracts only markers from weight file
         #may chunk each .bgen file into X chunks
-        bgenToGen(args.bgen,args.qctool,args.output,tmp_obj)
+        bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool)
 
     else: 
         print>> sys.stderr,"Must provide --vcf or --bgen but not both\n"
