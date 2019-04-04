@@ -26,11 +26,12 @@ from tempfile import NamedTemporaryFile
 def get_settings():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f","--file",help="File with variants and weights",type=str,required=True)
-    parser.add_argument("-c","--chr",help="0-based column with chromosome",type=int,default=1)
-    parser.add_argument("-p","--pos",help="0-based column with end position of vairant",type=int,default=3)
+    parser.add_argument("-c","--chr",help="0-based column with chromosome in file",type=int,default=1)
+    parser.add_argument("-p","--pos",help="0-based column with end position of variant in file",type=int,default=3)
     parser.add_argument("-v","--vcf",help="VCF with genetic data. Will convert to .dose.",type=str)
     parser.add_argument("-b","--bgen",help="BGEN with  genetic data. Will convert to .gen",type=str)
-    parser.add_argument("-vc","--vcf_chrom",help="Chromosome number of the VCF provided",type=int,default=0)
+    parser.add_argument("-s","--sample",help="BGEN sample file.",type=str)
+    parser.add_argument("-cn","--chr_num",help="Chromosome number of the BGEN or VCF provided",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     parser.add_argument("-q","--qctool",help="qctool path",type=str,default="/net/snowwhite/home/bwolford/qctool/build/release/qctool_v2.0.1")
@@ -76,9 +77,9 @@ def readSamples(vcf,out):
 
     sampleFile.close()
 
-def readWeights(f,c,p,v):
+def readWeights(f,c,p,n):
     """
-    Read file with weights from LDpred. Write into temporary bed file. 
+    Read file with weights from LDpred. Write into temporary bed file. Used to subset VCF provided.
     """
     #initialize temporary file
     sys.stderr.write("Writing temporary file for marker names in bed format\n")
@@ -93,8 +94,8 @@ def readWeights(f,c,p,v):
                 ls=line.rstrip()
                 if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit 
                     lineList=ls.split() #assumes whitespace delimiter, space or tab
-                    if v > 0: #vcf is just for one chromosome so we can ignore weights from other chrom
-                        if v==int(lineList[c]): 
+                    if n > 0: #vcf is just for one chromosome so we can ignore variants from other chromosome
+                        if n==int(lineList[c]): 
                             counter+=1
                             tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
                             tmp.write("\n")
@@ -103,6 +104,7 @@ def readWeights(f,c,p,v):
                         tmp.write("\t".join([lineList[c],str(int(lineList[p])-1),lineList[p]]))
                         tmp.write("\n")
         f.close()
+    tmp.close()
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
@@ -147,9 +149,42 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools):
     return 0
 
 
-def bgenToGen(bgen,qctool,out):
+def readWeightsForBgen(f,c,p,n):
+    """
+    Read file with weights from LDpred. Write into temporary text file. Used to subset BGEN provided.
+    """
+    #initialize temporary file
+    sys.stderr.write("Writing temporary file for marker names in chr:pos space delimited file\n")
+    marker_file = NamedTemporaryFile(delete=True,suffix=".txt")
+    with open(marker_file.name, 'w') as tmp:
+        #open file with weights
+        command=open_zip(f)
+        counter=0
+        with command as f:
+            for line in f:
+                ls=line.rstrip()
+                if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
+                    lineList=ls.split() #assumes whitespace delimiter, space or tab
+                    if n > 0: #bgen is just for one chromosome so we can ignore variants from other chrom
+                        if n==int(lineList[c]):
+                            counter+=1
+                            tmp.write(":".join([lineList[c],lineList[p]]))
+                            tmp.write(" ")
+                    else: #bgen is for all chromosomes
+                        counter+=1
+                        tmp.write("\t".join([lineList[c],lineList[p]]))
+                        tmp.write(" ")
+        f.close()
+    tmp.close()
+    print >> sys.stderr, "Number of markers to pull from BGEN is %d\n" % counter
+    return(marker_file,counter) #return tmp file object
+                        
+
+def bgenToGen(bgen,qctool,out,pos):
+
+    
     outName=".".join([out,"gen"])
-    subprocess.call([qctool,"-g",bgen,"-incl-variants",BED,"-og",outName])
+    subprocess.call([qctool,"-g",bgen,"-incl-positions",pos.name,"-og",outName])
     return 0
     
 #########################
@@ -165,7 +200,7 @@ def main():
     if args.bgen == None:
         
         #makes bed file of markers from weight file
-        tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.vcf_chrom)
+        tmp_obj,counter=readWeights(args.file,args.chr, args.pos,args.chr_num)
 
         #make sample file from VCF
         readSamples(args.vcf,args.output)
@@ -175,15 +210,20 @@ def main():
         callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools)
 
     #BGEN data 
-    else if  args.vcf == None:
+    elif  args.vcf == None:
 
+        #check for sample file
         if args.sample == None:
             print >> sys.stderr, "Must provide sample file for .bgen\n"
+        #To do:write out sample file with just FID and IID 
+
+        #makes text file of markers from weight file
+        tmp_obj,counter=readWeightsForBgen(args.file,args.chr,args.pos,args.chr_num)
 
         #To Do: decide what to do about chunked bed file that would be the incl-varaints, chunking and no chunking option? parlalelize
         #writes .gen from .bgen, extracts only markers from weight file
         #may chunk each .bgen file into X chunks
-        bgenToGen(args.bgen,args.qctool,args.output)
+        bgenToGen(args.bgen,args.qctool,args.output,tmp_obj)
 
     else: 
         print>> sys.stderr,"Must provide --vcf or --bgen but not both\n"
