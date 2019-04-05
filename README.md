@@ -8,8 +8,8 @@ Table of Contents
 
 # Introduction
 
-## FHiGR score
-Family History informed Genetic Risk score
+## Family History informed Genetic Risk score (FHiGR score)
+
 
 Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can calclate a GRS in your study.
 Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.
