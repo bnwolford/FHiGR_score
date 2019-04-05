@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-### Written by Kimmo Pääkkönen
+### Written by Kimmo Pääkkönen in 2015
 ### Revised by Dr. Ida Surakka in 2018
 ### Revised by Brooke Wolford in March 2019
 
@@ -31,11 +31,15 @@ class SNP(object):
         self.weight = None
         self.reversed = False
         self.allow_indels = False
-        ok = self.readGenFileLine(line)
+        ok = self.readDoseFileLine(line) #to do, need something for gen
         if not ok:
             raise ValueError(line)
+
+    def readGenFileLine():
+        #to do, get code from impute2doseage.py
+        return 0
         
-    def readGenFileLine(self, line):
+    def readDoseFileLine(self, line):
         """
         Reads single line of genotype
         """
@@ -151,8 +155,13 @@ class Impute2Dosage(object):
                     print ("%s is not a file!\n" % fn)
                     return False
         return True 
-                    
-    def readGenFile(self):
+
+
+    def readdGenFile(self):
+        #To DO, get from impute2doseaege.py
+        return 0
+    
+    def readDoseFile(self):
         """
         Reads the .dose file. If there are insertions or deletions, those lines 
         are skipped from analysis but they are written into file 
@@ -311,8 +320,7 @@ class Impute2Dosage(object):
     def printWeightedSampleFile(self, samples):
         """
         Prints sample file with weighted dosages as entries
-        If weighted dosage cannot be calculated for some snps, their id's will be printed to a file
-        failed_snp_ids.txt
+        If weighted dosage cannot be calculated for some snps, their id's will be printed to a file: failed_snp_ids.txt
         """
         out_f = open(self.args.output_fn, "w")
         header = "FID IID"
@@ -360,7 +368,15 @@ class Impute2Dosage(object):
         ok = self.checkInputFiles()
         if not ok:
             return
-        self.readGenFile()
+        
+        #handle 2 types of input files 
+        if ".gen" in args.input_fn:
+            self.readGenFile()
+        elif ".dose" in args.input_fn:
+            self.readDoseFile()
+        else:
+            print("--input_fn must end in .gen or .dose\n")
+    
         if self.args.sample_fn != None:
             samples = self.readSampleFile()
             if self.args.snp_weights_fn == None:
@@ -377,20 +393,16 @@ def parseArguments(args):
     parser = argparse.ArgumentParser(prog = "impute2dosage",
                                      description = "Converts .dose file into a weighted dosages file if both sample file and SNP weights (and chromosome number) are provided.",
                                      formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--input_fn", help = "The .dose file name")
+    parser.add_argument("--input_fn", help = "The file name. Script assumes .dose or .gen suffix and behaves accordingly.")
     parser.add_argument("--chromosome_no", help = "The number of the chromosome being analysed", default = None)
     parser.add_argument("--output_fn", help = "Output file name, default is dosages.gen", default = "dosages.gen")
     parser.add_argument("--sample_fn", help = "Sample file name", default = None)
-    parser.add_argument("--snp_weights_fn", help = "File with SNP weights. Also used for checking the snps by chromosome, position and allele. If this file is given, output file contains weighted dosages",
-                        default = None)
-    #parser.add_argument("--use_allele1", help = "If set, the first allele is used in calculations instead of the second",
-    #                    action = "store_true", default = False)
-    parser.add_argument("--allow_indels", help ="Allow matching indels in the gen file",
-                        default = False, action = "store_true")
-    parser.add_argument("--verbose", help="If true, prints possible error messages during calculations. Default is False.",
-                        action = "store_true", default = False)
+    parser.add_argument("--snp_weights_fn", help = "File with SNP weights. Also used for checking the snps by chromosome, position and allele. If this file is given, output file contains weighted dosages",default = None)
+    #parser.add_argument("--use_allele1", help = "If set, the first allele is used in calculations instead of the second", action = "store_true", default = False)
+    parser.add_argument("--allow_indels", help ="Allow matching indels in the gen file", default = False, action = "store_true")
+    parser.add_argument("--verbose", help="If true, prints possible error messages during calculations. Default is False.",action = "store_true", default = False)
     parser.add_argument("--version", help = "Shows the version number of the program",
-                        action = 'version', version = "%(prog)s {version}".format(version=__version__))
+    action = 'version', version = "%(prog)s {version}".format(version=__version__))
     return parser.parse_args(args)
         
 if __name__ == '__main__':
