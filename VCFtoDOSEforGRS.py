@@ -189,7 +189,7 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
         print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files\n" % (bgen,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
-        subprocess.call(["split",tmp.name,splitPrefix,"-a","2","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
+        subprocess.call(["split",tmp.name,splitPrefix,"-a","3","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
