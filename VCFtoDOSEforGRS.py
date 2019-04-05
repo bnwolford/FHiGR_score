@@ -20,6 +20,8 @@ import random
 import multiprocessing as mp
 from tempfile import NamedTemporaryFile
 
+#Requires bcftools or qctool_v2 as well as unix's split function
+
 ###########################
 ##### PARSE ARGUMENTS ####
 ###########################
@@ -36,6 +38,7 @@ def get_settings():
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     parser.add_argument("-q","--qctool",help="qctool path",type=str,default="/net/snowwhite/home/bwolford/qctool/build/release/qctool_v2.0.1")
     parser.add_argument("-t","--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
+    parser.add_argument("-p","--split",help="split path",type=str,default="/usr/bin/split")
     args=parser.parse_args()
     return args
 
@@ -108,7 +111,7 @@ def readWeights(f,c,p,n):
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
-def callQuery(vcf,tmp,out,chunk,counter,bcftools):
+def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
     """
     Turn VCF into a .dose format for specific list of markers. Assumes path to bcftools.
     """
@@ -117,7 +120,7 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools):
         print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %d .dose files\n" % (vcf,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
-        subprocess.call(["split",tmp.name,splitPrefix,"-n",chunkString,"-d","--additional-suffix=.bed"])
+        subprocess.call([split,tmp.name,splitPrefix,"-a","3","-n",chunkString,"-d","--additional-suffix=.bed"])
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
@@ -180,7 +183,7 @@ def readWeightsForBgen(f,c,p,n):
     return(marker_file,counter) #return tmp file object
                         
 
-def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
+def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
     """
     Turn .bgen into a .gen format for specific list of markers. Chunks into given number of chunks and runs qctool command parallely.
     """
@@ -189,7 +192,7 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
         print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files\n" % (bgen,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
-        subprocess.call(["split",tmp.name,splitPrefix,"-a","3","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
+        subprocess.call([split,tmp.name,splitPrefix,"-a","3","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
@@ -243,10 +246,13 @@ def bgen_sample(sf,out):
 #########################
 
 def main():
-
+    
     #get arguments
     args = get_settings()
 
+    if args.chunk>1000:
+        print >> sys.stderr, "UNIX's split command will exhaust suffixes. Recode this line or choose a smaller chunk size\n"
+    
     #VCF data
     if args.bgen == None:
         
@@ -258,7 +264,7 @@ def main():
     
         #writes .dose file from VCF, extracts markers from weight file
         #may chunk each .dose file into X chunks
-        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools)
+        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools,args.split)
 
     #BGEN data 
     elif  args.vcf == None:
@@ -276,7 +282,7 @@ def main():
         #To do: code split by hand, suffixes exhausted, make warning about split/cbuunk
         #writes .gen from .bgen, extracts only markers from weight file
         #may chunk each .bgen file into X chunks
-        bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool)
+        bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool,args.split)
 
     else: 
         print>> sys.stderr,"Must provide --vcf or --bgen but not both\n"
