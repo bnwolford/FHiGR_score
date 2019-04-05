@@ -29,20 +29,20 @@ bcftools, qctool v2, split, python2, and python3
 
 ## VCFtoDOSEforGRS.py 
 Despite the name, this file converts .vcf to .dose or .bgen to .gen. This is the beginning, preparatory step for calculating GRS.
-Written for Python 2.7.14.
+Written for Python 2.7.14. 
 
-* bgen to gen
+* bgen to gen 
 `python2 ~/scripts/VCFtoDOSEforGRS.py -f AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt -c 3 -p 4 -o UKBB.CHR3.AtrialFibrillation_PRS_LDpred_rho0.003 -b ukb_imp_chr3_v3.bgen -s ukb24460_imp_chr3_v3_s487395.sample -cn 3 -k 133`
 
-* vcf to dose
+* vcf to dose 
 `python VCFtoDOSEforGRS.py -f AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt -c 3 -p 4 -o CHR14.AtrialFibrillation_PRS_LDpred_rho0.003_v3 -v CHR14.HRC_WGS.vcf.gz -cn 14 -k 25`
 
 ## DOSEtoGRS.py 
 Despite the name, this file converts .dose or .gen to GRS. Written for Python 3.6.4.
 
-* gen to GRS
+* gen to GRS 
 
-* dose to GRS
+* dose to GRS 
 `python3 DOSEtoGRS.py --input_fn CHR17.AtrialFibrillation_PRS_LDpred_rho0.003_v3.22.dose --sample_fn CHR17.AtrialFibrillation_PRS_LDpred_rho0.003_v3.sample --snp_weights_fn AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt --chromosome_no 17 --output_fn CHR17.AtrialFibrillation_PRS_LDpred_rho0.003_v3.22.gen --verbose`
 
 ## sumGRS.py 
