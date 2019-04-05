@@ -249,7 +249,7 @@ def main():
     #get arguments
     args = get_settings()
 
-    if args.chunk>1000:
+    if int(args.chunk) > 1000:
         print >> sys.stderr, "UNIX's split command will exhaust suffixes. Recode this line or choose a smaller chunk size\n"
     
     #VCF data
