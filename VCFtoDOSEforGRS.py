@@ -123,8 +123,8 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
-            tmpFileList.append(''.join([splitPrefix,"%02d" % i,".bed"])) #what temporary bed files have the chunked markers 
-            outFileList.append(".".join([out,"%02d" % i,"dose"]))  #what will the final .dose files be called
+            tmpFileList.append(''.join([splitPrefix,"%03d" % i,".bed"])) #what temporary bed files have the chunked markers 
+            outFileList.append(".".join([out,"%03d" % i,"dose"]))  #what will the final .dose files be called
         cmds_list=[]
         procs_list=[]
         procs2_list=[]
@@ -156,7 +156,7 @@ def readWeightsForBgen(f,c,p,n):
     Read file with weights from LDpred. Write into temporary text file. Used to subset BGEN provided.
     """
     #initialize temporary file
-    sys.stderr.write("Writing temporary file for marker names in chr:pos space delimited file\n")
+    print >> sys.stderr, "Writing temporary file for marker names in chr:pos space delimited file\n"
     marker_file = NamedTemporaryFile(delete=True,suffix=".txt")
     with open(marker_file.name, 'w') as tmp:
         #open file with weights
@@ -195,8 +195,8 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
-            tmpFileList.append(''.join([splitPrefix,"%02d" % i,".txt"])) #what temporary text files have the chunked markers
-            outFileList.append(".".join([out,"%02d" % i,"gen"]))  #what will the final .gen files be called
+            tmpFileList.append(''.join([splitPrefix,"%03d" % i,".txt"])) #what temporary text files have the chunked markers
+            outFileList.append(".".join([out,"%03d" % i,"gen"]))  #what will the final .gen files be called
         cmds_list=[]
         procs_list=[]
         procs2_list=[]
