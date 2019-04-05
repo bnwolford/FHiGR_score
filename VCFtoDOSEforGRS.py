@@ -116,9 +116,9 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
     """
     #chunking option, make temporary files for the chunuks and call bcftools on each and then close them
     if chunk > 0:
-        print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %d .dose files\n" % (vcf,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
+        print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %d .dose files. Temporary .bed files have prefix %s\n" % (vcf,chunk,splitPrefix)
         subprocess.call([split,tmp.name,splitPrefix,"-a","3","-n",chunkString,"-d","--additional-suffix=.bed"])
         tmpFileList=[]
         outFileList=[]
@@ -188,9 +188,9 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
     """
     #chunking option, make temporary files for the chunks and call qctool on each and then close them
     if chunk > 0:
-        print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files\n" % (bgen,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
+        print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files. Temporary .txt files have prefix %s\n" % (bgen,chunk,splitPrefix)
         subprocess.call([split,tmp.name,splitPrefix,"-a","3","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
         tmpFileList=[]
         outFileList=[]
@@ -224,7 +224,7 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
 
 def bgen_sample(sf,out):
     outName=".".join([out,"sample"])
-    print >> sys.stderr,"Reading in sample names from .sample file belonging to bgen and writing to%s\n" % outName
+    print >> sys.stderr,"Reading in sample names from .sample file belonging to bgen and writing to %s\n" % outName
     #open new sample file for writing
     sampleFile=open(outName,"w")
     
