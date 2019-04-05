@@ -189,7 +189,7 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
         print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %d .gen files\n" % (bgen,chunk)
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
-        subprocess.call(["split",tmp.name,splitPrefix,"-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
+        subprocess.call(["split",tmp.name,splitPrefix,"-a","2","-t"," ","-n",chunkString,"-d","--additional-suffix=.txt"])
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
@@ -219,6 +219,24 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool):
         print >> sys.stderr, "Performing qctool query to pull markers from BGEN %s and write to %s\n" % (bgen,outName) 
         subprocess.call([qctool,"-g",bgen,"-incl-positions",tmp.name,"-og",outName])
     return 0
+
+def bgen_sample(sf,out):
+    outName=".".join([out,"sample"])
+    print >> sys.stderr,"Reading in sample names from .sample file belonging to bgen and writing to%s\n" % outName
+    #open new sample file for writing
+    sampleFile=open(outName,"w")
+    
+    #open sample file from bgen
+    command=open_zip(sf)
+    with command as f:
+        for line in f:
+            ls=line.rstrip()
+            lineList=ls.split()
+            sampleFile.write("\t".join([lineList[0],lineList[1]])) #UKBB .sample file is ID_1, ID_2
+            sampleFile.write("\n")
+    f.close()
+    sampleFile.close()
+    return(0)
     
 #########################
 ########## MAIN #########
@@ -248,12 +266,14 @@ def main():
         #check for sample file
         if args.sample == None:
             print >> sys.stderr, "Must provide sample file for .bgen\n"
+        else:
+            bgen_sample(args.sample,args.output)
         #To do:write out sample file with just FID and IID 
 
         #makes text file of markers from weight file
         tmp_obj,counter=readWeightsForBgen(args.file,args.chr,args.pos,args.chr_num)
 
-        #To Do: decide what to do about chunked bed file that would be the incl-varaints, chunking and no chunking option? parlalelize
+        #To do: code split by hand, suffixes exhausted, make warning about split/cbuunk
         #writes .gen from .bgen, extracts only markers from weight file
         #may chunk each .bgen file into X chunks
         bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool)
