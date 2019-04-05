@@ -4,7 +4,8 @@
 # Copyright (C) 2019 Brooke Wolford
 # Lab of Dr. Cristen Willer and Dr. Mike Boehnke
 # Revised from Dr. Ida Surakka pipeline
-# Formatting script to prepare to calculate genome wide polygenic risk scores using weights form LDpred
+# Step 1: Convert bgen to gen or vcf to dose using a weights file from LDpred with the variants of interest for the genome wide polygenic risk score
+#Requires bcftools or qctool_v2 as well as unix's split function
 #==============================================================================
 
 ############################
@@ -19,8 +20,6 @@ import string
 import random
 import multiprocessing as mp
 from tempfile import NamedTemporaryFile
-
-#Requires bcftools or qctool_v2 as well as unix's split function
 
 ###########################
 ##### PARSE ARGUMENTS ####
