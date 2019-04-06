@@ -39,6 +39,7 @@ def get_settings():
     parser.add_argument("--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
     args=parser.parse_args()
+    print >> sys.stderr, "%s" % args
     return args
 
 ###############################
