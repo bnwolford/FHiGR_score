@@ -26,7 +26,7 @@ Weights can be downloaded [here](http://www.broadcvdi.org/informational/data).
 
 ## Dependencies 
 bcftools, qctool v2, split, python2, and python3  
-python packages: argparse, glob, math, multiprocessing, numpy, os, pandas, random, scipy, string, subprocess, sys, time  
+python packages: argparse, glob, math, multiprocessing, numpy, os, pandas, random, scipy, string, subprocess, sys, time, tempfile  
 R packages:  
 
 ## VCFtoDOSEforGRS.py 
