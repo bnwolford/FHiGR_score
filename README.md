@@ -27,7 +27,7 @@ Weights can be downloaded [here](http://www.broadcvdi.org/informational/data).
 ## Dependencies 
 bcftools, qctool v2, split, python2, and python3  
 python packages: argparse, glob, math, multiprocessing, numpy, os, pandas, random, scipy, string, subprocess, sys, time, tempfile  
-R packages:  
+R packages: optparse, data.table  
 
 ## VCFtoDOSEforGRS.py 
 Despite the name, this file converts .vcf to .dose or .bgen to .gen. This is the beginning, preparatory step for calculating GRS.
