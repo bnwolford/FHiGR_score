@@ -115,12 +115,13 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
     """
     Turn VCF into a .dose format for specific list of markers. Assumes path to bcftools.
     """
-    #chunking option, make temporary files for the chunuks and call bcftools on each and then close them
+    #chunking option: make temporary files for the chunuks and call bcftools on each and then close them
     if chunk > 0:
         splitPrefix=''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         chunkString="/".join(["l",str(chunk)]) #l/N, chunking parameter
         print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %d .dose files. Temporary .bed files have prefix %s\n" % (vcf,chunk,splitPrefix)
         subprocess.call([split,tmp.name,splitPrefix,"-a","3","-n",chunkString,"-d","--additional-suffix=.bed"])
+
         tmpFileList=[]
         outFileList=[]
         for i in range(chunk):
@@ -133,22 +134,40 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
         for j in range(len(tmpFileList)):
             cmds_list.append(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
             rm_list.append(["rm",tmpFileList[j]])
-        for k in range(len(cmds_list)):
-            procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-        for proc in procs_list: #run bcftools parallel
-            proc.wait()
-        #clean up
-        print >> sys.stderr, "Removing temporary .bed files for chunking\n"
-        for r in range(len(rm_list)):
-            procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-        for proc2 in procs2_list: #run rm of tmp bed files parallel
-            proc2.wait()
 
+        if  chunk <= 5: #use subprocess if small number of chunks
+            print >> sys.stderr, "Using subprocess.Popen because chunk number %d <= 5\n" % chunk
+            for k in range(len(cmds_list)):
+                procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+            for proc in procs_list: #run bcftools parallel
+                proc.wait()
+            #clean up
+            print >> sys.stderr, "Removing temporary .bed files for chunking\n"
+            for r in range(len(rm_list)):
+                procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+            for proc2 in procs2_list: #run rm of tmp bed files parallel
+                proc2.wait()
+
+        elif chunk > 5: #use multiprocessing
+            print >> sys.stderr, "Using multiprocessing pool functionality because chunk number %d > 5\n" % chunk
+            pool = mp.Pool(mp.cpu_count()-1) #one less than number of cores
+            results_list=pool.map(cmd_executor,cmds_list)
+            if (sum(results_list)) != 0:
+                print >> sys.stderr, "At least one parallelized bcftools query failed\n"
+            print >> sys.stderr, "Removing temporary .bed files for chunking\n"
+            results_list=pool.map(cmd_executor,rm_list)
+            
     #no chunking
     elif chunk==0:
         outName=".".join([out,"dose"])
         print >> sys.stderr, "Performing bcftools query to pull markers frorm VCF %s and write to %s\n" % (vcf,outName)
         subprocess.call([bcftools,"query",vcf,"-R",tmp.name,"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outName])
+    return 0
+
+#called with multiprocessing pool when chunk > 5
+def cmd_executor(cmd):
+    pid=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    pid.wait()
     return 0
 
 
@@ -205,17 +224,29 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
         for j in range(len(tmpFileList)):
             cmds_list.append([qctool,"-g",bgen,"-incl-positions",tmpFileList[j],"-og",outFileList[j]])
             rm_list.append(["rm",tmpFileList[j]])
-        for k in range(len(cmds_list)):
-            procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-        for proc in procs_list: #run qctool parallel
-            proc.wait()
-        #clean up
-        print >> sys.stderr, "Removing temporary .txt files for chunking\n"
-        for r in range(len(rm_list)):
-            procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-        for proc2 in procs2_list: #run rm of tmp bed files parallel
-            proc2.wait()
 
+        if  chunk <= 5: #use subprocess if small number of chunks
+            print >> sys.stderr, "Using subprocess.Popen because chunk number %d <= 5\n" % chunk
+            for k in range(len(cmds_list)):
+                procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+            for proc in procs_list: #run qctool parallel
+                proc.wait()
+            #clean up
+            print >> sys.stderr, "Removing temporary .txt files for chunking\n"
+            for r in range(len(rm_list)):
+                procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+            for proc2 in procs2_list: #run rm of tmp bed files parallel
+                proc2.wait()
+
+        elif chunk > 5: #use multiprocessing
+            print >> sys.stderr, "Using multiprocessing pool functionality because chunk number %d > 5\n" % chunk
+            pool = mp.Pool(mp.cpu_count()-1) #one less than number of cores
+            results_list=pool.map(cmd_executor,cmds_list)
+            if (sum(results_list)) != 0:
+                print >> sys.stderr, "At least one parallelized bcftools query failed\n"
+            print >> sys.stderr, "Removing temporary .txt files for chunking\n"
+            results_list=pool.map(cmd_executor,rm_list)
+            
     #no chunking
     elif chunk==0:
         outName=".".join([out,"gen"])
