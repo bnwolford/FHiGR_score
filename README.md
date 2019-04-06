@@ -52,4 +52,8 @@ Sum across the chromosomal chunks for one GRS per sample. Option to return inver
 
 `python sumGRS.py -s CHR22.AtrialFibrillation_PRS_LDpred_rho0.003_v3.sample -c AtrialFibrillation_PRS_LDpred_rho0.003_v3.config -o HUNT.AtrialFibrillation_PRS_LDpred_rho0.003_v3.GRS -i`
 
+## Helper scripts
+
+* checkDim.R
+
 # Change Log
