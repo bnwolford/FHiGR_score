@@ -29,7 +29,7 @@ bcftools, qctool v2, split, python2, and python3
 
 ## VCFtoDOSEforGRS.py 
 Despite the name, this file converts .vcf to .dose or .bgen to .gen. This is the beginning, preparatory step for calculating GRS.
-Written for Python 2.7.14. 
+Written for Python 2.7.14. This script has low memory requirements, <1 G per chromosome.
 
 * bgen to gen 
 `python2 ~/scripts/VCFtoDOSEforGRS.py -f AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt -c 3 -p 4 -o UKBB.CHR3.AtrialFibrillation_PRS_LDpred_rho0.003 -b ukb_imp_chr3_v3.bgen -s ukb24460_imp_chr3_v3_s487395.sample -cn 3 -k 133`
