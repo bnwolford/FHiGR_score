@@ -21,7 +21,7 @@ class SNP(object):
     Object to contain data from single .dose line
     Will also keep track of dosages and weights if needed
     """
-    def __init__(self, line, allow_indels):
+    def __init__(self, line, allow_indels,file_type):
         self.rsid = None
         self.chrom = None
         self.pos = None
@@ -30,18 +30,65 @@ class SNP(object):
         self.dosages = None
         self.weight = None
         self.reversed = False
-        self.allow_indels = False
-        ok = self.readDoseFileLine(line) #to do, need something for gen
+        self.allow_indels = False #this is different in impute2dosage
+
+        if file_type=="gen":
+            ok=self.readGenFileLine(line)
+        elif file_type=="dose":
+            ok = self.readDoseFileLine(line) 
         if not ok:
             raise ValueError(line)
 
-    def readGenFileLine():
-        #to do, get code from impute2doseage.py
+    def readGenFileLine(self,line):
+        """
+        Reads single line of genotype from .gen file
+        """
+        words = line.split()
+        
+        # first check which position holds the first allele, either element no 4 or 5
+        if words[3][0] in ("A","C","G","T"):
+            first_allele = 3
+        elif words[4][0] in ("A","C","G","T"):
+            first_allele = 4
+        else:
+            print ("Could not find allele column in line: %s" % line)
+            
+            if self.allow_indels == False:
+                # ignore line if the allele is insertion or deletion
+                if len(words[first_allele]) > 1 or len(words[first_allele+1]) > 1:
+                    return False
+            
+            self.chrom = words[0]
+            # remove leading zero from chrom if necessary
+            if self.chrom[0] == "0":
+                self.chrom = self.chrom[1:]
+            self.rsid = words[first_allele - 2]
+            self.pos = words[first_allele -1]
+            self.a1 = words[first_allele]
+            self.a2 = words[first_allele + 1]
+            # start column of the genotype data
+            geno_start = first_allele + 2
+            # each snp line contains n genotypes
+            # genotypes consists of three numbers; AA, AB and BB allele frequencies
+            # count number of genotypes in the snp line
+            no_genotypes = int((len(words) - geno_start) / 3)
+            self.dosages = [0] * no_genotypes
+            # calculates and stores all the dosages for the snp
+            for geno_no in range(no_genotypes):
+                # calculate dosage for single genotype
+                geno_index = (geno_no * 3) + geno_start
+                aa = float(words[geno_index])
+                ab = float(words[geno_index + 1])
+                bb = float(words[geno_index + 2])
+                # store the dosage
+                self.dosages[geno_no] = 2 * bb + ab
+            return True
+        
         return 0
         
     def readDoseFileLine(self, line):
         """
-        Reads single line of genotype
+        Reads single line of genotype from .dose file 
         """
         words = line.split()
         
@@ -157,10 +204,52 @@ class Impute2Dosage(object):
         return True 
 
 
-    def readdGenFile(self):
-        #To DO, get from impute2doseaege.py
-        return 0
-    
+    def readGenFile(self):
+        """
+        Reads the .gen file. If there are insertions or deletions, those lines
+        are skipped from analysis but they are written into file
+        inserts_and_deletions.txt
+        """
+        if self.args.sample_fn == None:
+            if self.args.verbose:
+                print ("Opening file %s for output" % self.args.output_fn)
+            out_f = open(self.args.output_fn, "w")
+        error_f = None
+        with open(self.args.input_fn) as gen_f:
+            i = 0
+            for line in gen_f:
+                ignore_line = False
+                try:
+                    snp = SNP(line, self.args.allow_indels,"gen")
+                except ValueError:
+                    # the snp was insertion or deletion - write the line to
+                    # file inserts_and_deletions.txt
+                    ignore_line = True
+                    if error_f == None:
+                        error_f = open("inserts_and_deletions.txt", "w")
+                        error_f.write("%s" % line)
+                    if not ignore_line:
+                        if self.args.sample_fn == None:
+                            # no sample file, just print out the dosage file
+                            out_f.write("%s\n" % snp.getDosageLine())
+                        else:
+                            # there is a sample file, so the SNP information has to be stored
+                            snp_id = snp.getUniquePosID()
+                            self.snps[snp_id] = snp
+                            if i % 100 == 0:
+                                print ("\rReading row no %d in file %s" % (i, self.args.input_fn), end="")
+                                sys.stdout.flush()
+                            i += 1
+        if error_f != None:
+            error_f.close()
+        if self.args.verbose:
+            print ("\nFile %s read" % self.args.input_fn)
+        if self.args.sample_fn == None:
+            out_f.close()
+            print ("File %s written" % self.args.output_fn)
+        return
+                    
+                                                    
     def readDoseFile(self):
         """
         Reads the .dose file. If there are insertions or deletions, those lines 
@@ -177,7 +266,7 @@ class Impute2Dosage(object):
             for line in gen_f:
                 ignore_line = False
                 try:
-                    snp = SNP(line, self.args.allow_indels)
+                    snp = SNP(line, self.args.allow_indels,"dose")
                 except ValueError:
                     # the snp was insertion or deletion - write the line to 
                     # file inserts_and_deletions.txt
@@ -370,9 +459,9 @@ class Impute2Dosage(object):
             return
         
         #handle 2 types of input files 
-        if ".gen" in args.input_fn:
+        if ".gen" in self.args.input_fn:
             self.readGenFile()
-        elif ".dose" in args.input_fn:
+        elif ".dose" in self.args.input_fn:
             self.readDoseFile()
         else:
             print("--input_fn must end in .gen or .dose\n")
@@ -390,9 +479,8 @@ def parseArguments(args):
     """
     Handles the argument parsing
     """
-    parser = argparse.ArgumentParser(prog = "impute2dosage",
-                                     description = "Converts .dose file into a weighted dosages file if both sample file and SNP weights (and chromosome number) are provided.",
-                                     formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(prog = "DOSEtoGRS.py",
+                                     description = "Converts .dose or .gen file into a weighted dosages file if both sample file and SNP weights (and chromosome number) are provided.", formatter_class = argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--input_fn", help = "The file name. Script assumes .dose or .gen suffix and behaves accordingly.")
     parser.add_argument("--chromosome_no", help = "The number of the chromosome being analysed", default = None)
     parser.add_argument("--output_fn", help = "Output file name, default is dosages.gen", default = "dosages.gen")
