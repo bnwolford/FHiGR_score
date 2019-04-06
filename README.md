@@ -11,13 +11,13 @@ Table of Contents
 ## Family History informed Genetic Risk score (FHiGR score)
 
 
-Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can calclate a GRS in your study.
-Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.
+Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can calclate a GRS in your study.  
+Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.  
 
 ## Acknowledgements
 Code base authored by Kimmo Pääkkönen, Dr. Ida Surakka, and Brooke Wolford
 
-Genome-wide polygenic score (GPS) weights from [Khera, A. V. et al. Genome-wide polygenic scores for common diseases identify individuals with risk equivalent to monogenic mutations. Nature Genetics 50, 1219 (2018).](10.1038/s41588-018-0183-z)
+Genome-wide polygenic score (GPS) weights from [Khera, A. V. et al. Genome-wide polygenic scores for common diseases identify individuals with risk equivalent to monogenic mutations. Nature Genetics 50, 1219 (2018).](10.1038/s41588-018-0183-z)  
 Weights can be downloaded [here](http://www.broadcvdi.org/informational/data)
 
 # Notes for use
@@ -26,6 +26,8 @@ Weights can be downloaded [here](http://www.broadcvdi.org/informational/data)
 
 ## Dependencies 
 bcftools, qctool v2, split, python2, and python3 
+python packages: argparse, glob, math, multiprocessing,numpy, os, pandas, random, scipy, string, subprocess, sys, time
+R packages:
 
 ## VCFtoDOSEforGRS.py 
 Despite the name, this file converts .vcf to .dose or .bgen to .gen. This is the beginning, preparatory step for calculating GRS.
