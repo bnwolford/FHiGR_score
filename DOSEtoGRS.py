@@ -301,11 +301,13 @@ class Impute2Dosage(object):
         i = 0
         with open(self.args.sample_fn) as sample_file:
             for line in sample_file:
-                # skip first header row
-                if i not in [0,1]: #make more specific for .dose
+                # skip first header row 
+                if i not in [0]:
                     # data row, check the number of elements
                     words = line.split()
-                    if len(words) < 2:
+                    if words[0]=="0" and words[1]=="0" and words[2]=="0": #skip second header line for .gen associated sample files 
+                        continue
+                    elif len(words) < 2:
                         # too short data row, give error and stop
                         print("Sample file %s has row with too few elements\n" % self.args.sample_fn)
                         print("Every row has to have FID & IID\n")
