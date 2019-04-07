@@ -190,12 +190,12 @@ def readWeightsForBgen(f,c,p,n):
                     if n > 0: #bgen is just for one chromosome so we can ignore variants from other chrom
                         if n==int(lineList[c]):
                             counter+=1
-                            chrom="0"+lineList[c] if len(lineList[c]) else lineList[c] #bgen -incl-positions requires CC:pos
+                            chrom="0"+lineList[c] if len(lineList[c]) < 2 else lineList[c] #bgen -incl-positions requires CC:pos
                             tmp.write(":".join([chrom,lineList[p]]))
                             tmp.write(" ")
                     else: #bgen is for all chromosomes
                         counter+=1
-                        chrom="0"+lineList[c] if len(lineList[c]) else lineList[c] #bgen -incl-positions requires CC:pos
+                        chrom="0"+lineList[c] if len(lineList[c]) < 2 else lineList[c] #bgen -incl-positions requires CC:pos
                         tmp.write("\t".join([chrom,lineList[p]]))
                         tmp.write(" ")
         f.close()
