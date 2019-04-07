@@ -18,10 +18,10 @@ __version__= "1.1"
 
 class SNP(object):
     """
-    Object to contain data from single .dose line
+    Object to contain data from single .dose or .gen line
     Will also keep track of dosages and weights if needed
     """
-    def __init__(self, line, allow_indels,file_type):
+    def __init__(self, line, allow_indels, file_type):
         self.rsid = None
         self.chrom = None
         self.pos = None
@@ -31,11 +31,10 @@ class SNP(object):
         self.weight = None
         self.reversed = False
         self.allow_indels = False #this is different in impute2dosage
-
         if file_type=="gen":
-            ok=self.readGenFileLine(line)
+            ok = self.readGenFileLine(line)
         elif file_type=="dose":
-            ok = self.readDoseFileLine(line) 
+            ok = self.readDoseFileLine(line)
         if not ok:
             raise ValueError(line)
 
@@ -53,38 +52,36 @@ class SNP(object):
         else:
             print ("Could not find allele column in line: %s" % line)
             
-            if self.allow_indels == False:
-                # ignore line if the allele is insertion or deletion
-                if len(words[first_allele]) > 1 or len(words[first_allele+1]) > 1:
-                    return False
+        if self.allow_indels == False:
+            # ignore line if the allele is insertion or deletion
+            if len(words[first_allele]) > 1 or len(words[first_allele+1]) > 1:
+                return False
             
-            self.chrom = words[0]
-            # remove leading zero from chrom if necessary
-            if self.chrom[0] == "0":
-                self.chrom = self.chrom[1:]
-            self.rsid = words[first_allele - 2]
-            self.pos = words[first_allele -1]
-            self.a1 = words[first_allele]
-            self.a2 = words[first_allele + 1]
-            # start column of the genotype data
-            geno_start = first_allele + 2
-            # each snp line contains n genotypes
-            # genotypes consists of three numbers; AA, AB and BB allele frequencies
-            # count number of genotypes in the snp line
-            no_genotypes = int((len(words) - geno_start) / 3)
-            self.dosages = [0] * no_genotypes
-            # calculates and stores all the dosages for the snp
-            for geno_no in range(no_genotypes):
-                # calculate dosage for single genotype
-                geno_index = (geno_no * 3) + geno_start
-                aa = float(words[geno_index])
-                ab = float(words[geno_index + 1])
-                bb = float(words[geno_index + 2])
-                # store the dosage
-                self.dosages[geno_no] = 2 * bb + ab
-            return True
-        
-        return 0
+        self.chrom = words[0]
+        # remove leading zero from chrom if necessary
+        if self.chrom[0] == "0":
+            self.chrom = self.chrom[1:]
+        self.rsid = words[first_allele - 2]
+        self.pos = words[first_allele -1]
+        self.a1 = words[first_allele]
+        self.a2 = words[first_allele + 1]
+        # start column of the genotype data
+        geno_start = first_allele + 2
+        # each snp line contains n genotypes
+        # genotypes consists of three numbers; AA, AB and BB allele frequencies
+        # count number of genotypes in the snp line
+        no_genotypes = int((len(words) - geno_start) / 3)
+        self.dosages = [0] * no_genotypes
+        # calculates and stores all the dosages for the snp
+        for geno_no in range(no_genotypes):
+            # calculate dosage for single genotype
+            geno_index = (geno_no * 3) + geno_start
+            aa = float(words[geno_index])
+            ab = float(words[geno_index + 1])
+            bb = float(words[geno_index + 2])
+            # store the dosage
+            self.dosages[geno_no] = 2 * bb + ab
+        return True
         
     def readDoseFileLine(self, line):
         """
@@ -189,10 +186,11 @@ class Impute2Dosage(object):
     def __init__(self, args = sys.argv[1:]):
         '''
         Constructor gets the command line arguments and feeds them to argparse
-        self.snps is an ordered dictionary of SNP objects and will contain all snps from the .dose file
+        self.snps is an ordered dictionary of SNP objects and will contain all snps from the .dose or .gen file
         '''
         self.args = parseArguments(args)
         self.snps = OrderedDict()
+
         
     def checkInputFiles(self):
         files_to_check = (self.args.input_fn, self.args.sample_fn, self.args.snp_weights_fn)
@@ -225,21 +223,21 @@ class Impute2Dosage(object):
                     # the snp was insertion or deletion - write the line to
                     # file inserts_and_deletions.txt
                     ignore_line = True
-                    if error_f == None:
-                        error_f = open("inserts_and_deletions.txt", "w")
-                        error_f.write("%s" % line)
-                    if not ignore_line:
-                        if self.args.sample_fn == None:
-                            # no sample file, just print out the dosage file
-                            out_f.write("%s\n" % snp.getDosageLine())
-                        else:
-                            # there is a sample file, so the SNP information has to be stored
-                            snp_id = snp.getUniquePosID()
-                            self.snps[snp_id] = snp
-                            if i % 100 == 0:
-                                print ("\rReading row no %d in file %s" % (i, self.args.input_fn), end="")
-                                sys.stdout.flush()
-                            i += 1
+                if error_f == None:
+                    error_f = open("inserts_and_deletions.txt", "w")
+                    error_f.write("%s" % line)
+                if not ignore_line:
+                    if self.args.sample_fn == None:
+                        # no sample file, just print out the dosage file
+                        out_f.write("%s\n" % snp.getDosageLine())
+                    else:
+                        # there is a sample file, so the SNP information has to be stored
+                        snp_id = snp.getUniquePosID()
+                        self.snps[snp_id] = snp
+                if i % 1000 == 0:
+                    print ("\rReading row no %d in file %s" % (i, self.args.input_fn), end="")
+                    sys.stdout.flush()
+                i += 1
         if error_f != None:
             error_f.close()
         if self.args.verbose:
@@ -304,7 +302,7 @@ class Impute2Dosage(object):
         with open(self.args.sample_fn) as sample_file:
             for line in sample_file:
                 # skip first header row
-                if i not in [0]:
+                if i not in [0,1]: #make more specific for .dose
                     # data row, check the number of elements
                     words = line.split()
                     if len(words) < 2:
@@ -323,7 +321,6 @@ class Impute2Dosage(object):
         """
         Reads the weights file, finds matching SNP and sets the weight for it. Assumes header, either text or #.
         """
-
         with open(self.args.snp_weights_fn) as weights_f:
             for line in weights_f:
                 if line[0].isdigit(): #expects first value will be a number, not text or #
@@ -414,7 +411,7 @@ class Impute2Dosage(object):
         out_f = open(self.args.output_fn, "w")
         header = "FID IID"
         for snp_id in self.snps.keys():
-            used_allele = self.snps[snp_id].getUsedAllele()
+            used_allele = self.snps[snp_id].getUsedAllele() #allele that the weight is in terms of
 #            header += " %s_%s" % (snp_id, used_allele)
         out_f.write("%s Summed_weight\n" % header)
         i = 0
@@ -430,7 +427,7 @@ class Impute2Dosage(object):
                         failed_snp_ids.append(snp_id)
 #                    row += " NA"
                 else:
-#                    row += " %s" % weighted_dosage
+                    #row += " %s" % weighted_dosage  #this  line prints the dosage of each SNP
                     weight_sum += weighted_dosage
             out_f.write("%s %f\n" % (row, weight_sum))
             if i % 10000 == 0:
