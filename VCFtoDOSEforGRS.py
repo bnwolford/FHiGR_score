@@ -32,14 +32,14 @@ def get_settings():
     parser.add_argument("-v","--vcf",help="VCF with genetic data. Will convert to .dose.",type=str)
     parser.add_argument("-b","--bgen",help="BGEN with  genetic data. Will convert to .gen",type=str)
     parser.add_argument("-s","--sample",help="BGEN sample file.",type=str)
-    parser.add_argument("-cn","--chr_num",help="Chromosome number of the BGEN or VCF provided",type=int,default=0)
+    parser.add_argument("-cn","--chr_num",help="Chromosome number of the BGEN or VCF provided if for a single chromosome (not recommended to provide entire genome genetic file, cna have leading 0)",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     parser.add_argument("--qctool",help="qctool path",type=str,default="/net/snowwhite/home/bwolford/qctool/build/release/qctool_v2.0.1")
     parser.add_argument("--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
     args=parser.parse_args()
-    print >> sys.stderr, "%s" % args
+    print >> sys.stderr, "%s\n" % args
     return args
 
 ###############################
@@ -190,10 +190,12 @@ def readWeightsForBgen(f,c,p,n):
                     if n > 0: #bgen is just for one chromosome so we can ignore variants from other chrom
                         if n==int(lineList[c]):
                             counter+=1
-                            tmp.write(":".join([lineList[c],lineList[p]]))
+                            if len(lineList[c]) < 2: chrom="0"+lineList[c] #bgen -incl-positions requires CC:pos
+                            tmp.write(":".join([chrom,lineList[p]]))
                             tmp.write(" ")
                     else: #bgen is for all chromosomes
                         counter+=1
+                        if len(lineList[c])< 2: chrom="0"+lineList[c] #bg en -incl-positions requires CC:pos
                         tmp.write("\t".join([lineList[c],lineList[p]]))
                         tmp.write(" ")
         f.close()
