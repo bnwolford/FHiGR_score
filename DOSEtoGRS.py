@@ -490,6 +490,8 @@ def parseArguments(args):
     parser.add_argument("--verbose", help="If true, prints possible error messages during calculations. Default is False.",action = "store_true", default = False)
     parser.add_argument("--version", help = "Shows the version number of the program",
     action = 'version', version = "%(prog)s {version}".format(version=__version__))
+
+    print >> sys.stderr, "%s\n" % parser.parse_args()
     return parser.parse_args(args)
         
 if __name__ == '__main__':
