@@ -305,7 +305,7 @@ class Impute2Dosage(object):
                 if i not in [0]:
                     # data row, check the number of elements
                     words = line.split()
-                    if words[0]=="0" and words[1]=="0" and words[2]=="0": #skip second header line for .gen associated sample files 
+                    if words[0]=="0" and words[1]=="0":
                         continue
                     elif len(words) < 2:
                         # too short data row, give error and stop
