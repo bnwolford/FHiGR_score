@@ -191,7 +191,7 @@ def readWeightsForBgen(f,c,p,n):
     return(marker_file,counter) #return tmp file object
                         
 
-def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
+def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split,cpu):
     """
     Turn .bgen into a .gen format for specific list of markers. Chunks into given number of chunks and runs qctool command parallely.
     """
