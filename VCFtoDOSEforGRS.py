@@ -32,12 +32,13 @@ def get_settings():
     parser.add_argument("-v","--vcf",help="VCF with genetic data. Will convert to .dose.",type=str)
     parser.add_argument("-b","--bgen",help="BGEN with  genetic data. Will convert to .gen",type=str)
     parser.add_argument("-s","--sample",help="BGEN sample file.",type=str)
-    parser.add_argument("-cn","--chr_num",help="Chromosome number of the BGEN or VCF provided if for a single chromosome (not recommended to provide entire genome genetic file, cna have leading 0)",type=int,default=0)
+    parser.add_argument("-cn","--chr_num",help="Chromosome number of the BGEN or VCF provided if for a single chromosome (not recommended to provide entire genome genetic file, can have leading 0)",type=int,default=0)
     parser.add_argument("-k","--chunk",help="Chunk each .dose file into X chunks for parallelization",default=0)
     parser.add_argument("-o","--output",help="output prefix",type=str,required=True)
     parser.add_argument("--qctool",help="qctool path",type=str,default="/net/snowwhite/home/bwolford/qctool/build/release/qctool_v2.0.1")
     parser.add_argument("--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
+    parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
     args=parser.parse_args()
     print >> sys.stderr, "%s\n" % args
     return args
@@ -111,7 +112,7 @@ def readWeights(f,c,p,n):
     print >> sys.stderr, "Number of markers to pull from VCF is %d\n" % counter
     return(marker_bed,counter) #return tmp file object
             
-def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
+def callQuery(vcf,tmp,out,chunk,counter,bcftools,split,cpu):
     """
     Turn VCF into a .dose format for specific list of markers. Assumes path to bcftools.
     """
@@ -135,27 +136,13 @@ def callQuery(vcf,tmp,out,chunk,counter,bcftools,split):
             cmds_list.append(["bcftools","query",vcf,"-R",tmpFileList[j],"-f","%ID\t%CHROM\t%POS\t%REF\t%ALT[\t%DS]\n","-o",outFileList[j]])
             rm_list.append(["rm",tmpFileList[j]])
 
-        if  chunk <= 5: #use subprocess if small number of chunks
-            print >> sys.stderr, "Using subprocess.Popen because chunk number %d <= 5\n" % chunk
-            for k in range(len(cmds_list)):
-                procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-            for proc in procs_list: #run bcftools parallel
-                proc.wait()
-            #clean up
-            print >> sys.stderr, "Removing temporary .bed files for chunking\n"
-            for r in range(len(rm_list)):
-                procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-            for proc2 in procs2_list: #run rm of tmp bed files parallel
-                proc2.wait()
-
-        elif chunk > 5: #use multiprocessing
-            print >> sys.stderr, "Using multiprocessing pool functionality because chunk number %d > 5\n" % chunk
-            pool = mp.Pool(mp.cpu_count()-1) #one less than number of cores
-            results_list=pool.map(cmd_executor,cmds_list)
-            if (sum(results_list)) != 0:
-                print >> sys.stderr, "At least one parallelized bcftools query failed\n"
-            print >> sys.stderr, "Removing temporary .bed files for chunking\n"
-            results_list=pool.map(cmd_executor,rm_list)
+        print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d chunks" % (cpu,chunk)
+        pool = mp.Pool(cpu) #use user defined number of cpus, user should also specify for job scheduler
+        results_list=pool.map(cmd_executor,cmds_list)
+        if (sum(results_list)) != 0:
+            print >> sys.stderr, "At least one parallelized bcftools query failed\n"
+        print >> sys.stderr, "Removing temporary .bed files for chunking\n"
+        results_list=pool.map(cmd_executor,rm_list)
             
     #no chunking
     elif chunk==0:
@@ -227,27 +214,13 @@ def bgenToGen(bgen,tmp,out,chunk,counter,qctool,split):
             cmds_list.append([qctool,"-g",bgen,"-incl-positions",tmpFileList[j],"-og",outFileList[j]])
             rm_list.append(["rm",tmpFileList[j]])
 
-        if  chunk <= 5: #use subprocess if small number of chunks
-            print >> sys.stderr, "Using subprocess.Popen because chunk number %d <= 5\n" % chunk
-            for k in range(len(cmds_list)):
-                procs_list.append(subprocess.Popen(cmds_list[k],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-            for proc in procs_list: #run qctool parallel
-                proc.wait()
-            #clean up
-            print >> sys.stderr, "Removing temporary .txt files for chunking\n"
-            for r in range(len(rm_list)):
-                procs2_list.append(subprocess.Popen(rm_list[r],stdout=subprocess.PIPE,stderr=subprocess.PIPE))
-            for proc2 in procs2_list: #run rm of tmp bed files parallel
-                proc2.wait()
-
-        elif chunk > 5: #use multiprocessing
-            print >> sys.stderr, "Using multiprocessing pool functionality because chunk number %d > 5\n" % chunk
-            pool = mp.Pool(mp.cpu_count()-1) #one less than number of cores
-            results_list=pool.map(cmd_executor,cmds_list)
-            if (sum(results_list)) != 0:
-                print >> sys.stderr, "At least one parallelized bcftools query failed\n"
-            print >> sys.stderr, "Removing temporary .txt files for chunking\n"
-            results_list=pool.map(cmd_executor,rm_list)
+        print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d chunks\n" % (cpu,chunk)
+        pool = mp.Pool(cpu) #use user defined cpus, should also submit this to job scheduler
+        results_list=pool.map(cmd_executor,cmds_list)
+        if (sum(results_list)) != 0:
+            print >> sys.stderr, "At least one parallelized bcftools query failed\n"
+        print >> sys.stderr, "Removing temporary .txt files for chunking\n"
+        results_list=pool.map(cmd_executor,rm_list)
             
     #no chunking
     elif chunk==0:
@@ -297,7 +270,7 @@ def main():
     
         #writes .dose file from VCF, extracts markers from weight file
         #may chunk each .dose file into X chunks
-        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools,args.split)
+        callQuery(args.vcf,tmp_obj,args.output,int(args.chunk),counter,args.bcftools,args.split,args.cpu)
 
     #BGEN data 
     elif  args.vcf == None:
@@ -315,7 +288,7 @@ def main():
         #To do: code split by hand, suffixes exhausted, make warning about split/cbuunk
         #writes .gen from .bgen, extracts only markers from weight file
         #may chunk each .bgen file into X chunks
-        bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool,args.split)
+        bgenToGen(args.bgen,tmp_obj,args.output,int(args.chunk),counter,args.qctool,args.split,args.cpu)
 
     else: 
         print>> sys.stderr,"Must provide --vcf or --bgen but not both\n"
