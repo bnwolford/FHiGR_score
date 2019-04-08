@@ -433,7 +433,7 @@ class Impute2Dosage(object):
                     weight_sum += weighted_dosage
             out_f.write("%s %f\n" % (row, weight_sum))
             if i % 10000 == 0:
-                print ("Writing row number %d to file %s\n" % (i, self.args.output_fn))
+                print ("\rWriting row number %d to file %s\n" % (i, self.args.output_fn), end="")
                 sys.stdout.flush()
             i += 1
 #        if len(failed_snp_ids) > 0:
@@ -491,7 +491,7 @@ def parseArguments(args):
     parser.add_argument("--version", help = "Shows the version number of the program",
     action = 'version', version = "%(prog)s {version}".format(version=__version__))
 
-    print >> sys.stderr, "%s\n" % parser.parse_args()
+    print("%s\n" % parser.parse_args())
     return parser.parse_args(args)
         
 if __name__ == '__main__':
