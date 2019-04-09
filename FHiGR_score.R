@@ -28,9 +28,9 @@ optionList <- list(
     make_option(c("-o","--output"),type="character",help="Prefix for output files",default="FHiGR"),
     make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables",default=3),
     make_option("--maintitle", type="character", default="",help="Plot title"),
-    make_option("--xlabel",type="character",default="",help="X-axis label"),
-    make_option("--ylabel",type="character",default="",help="Y-axis label"),
-    make_option("--legend",type="character",default="",help="Legend title which is stratum")
+    make_option("--xlabel",type="character",default="GRS",help="X-axis label"),
+    make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label"),
+    make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum")
 )
 
 parser <- OptionParser(
