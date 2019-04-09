@@ -90,7 +90,8 @@ tile_info<-function(num_list){
 
 ##quantile is how many divisions we should make of dataset (e.g. 20-quantile is ventiles for 20 groups)
 ##returns object with prevalences and standard error for distribution 
-#split into provided number of quantiles and then by provided stratum if qfirst==TRUE
+##split into provided number of quantiles and then by provided stratum if qfirst==TRUE
+##TO DO: checking for binary variable isn't working as expected
 prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=FALSE){
     if (!sum(unique(df[[strat_col]])==c(0,1))==2) {
         print("Stratum column must be a binary variable. Expects 0 and 1.")
