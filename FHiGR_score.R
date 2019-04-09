@@ -446,7 +446,7 @@ for (l in c(1,2)){
 ##odds ratio for top vs bottom of distribution for entire dataset
 ##write file
 file_name<-paste(sep=".",out,"allOR.txt")
-write.table(allORdf,file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
+write.table(format(allORdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
 ##plot
 #pdf_fn<-paste(sep=".","allOR.pdf")
 #pdf(file=pdf_fn,height=6,width=8)
