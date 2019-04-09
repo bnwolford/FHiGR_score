@@ -434,7 +434,7 @@ for (l in c(1,2)){
   names(stratumORdf)<-names(allORdf)
   comparedf<-rbind(stratumORdf,allORdf)
   pdf_fn<-paste(sep=".",out,"compareOR",label_list[l],"pdf")
-  pdf(file=pdf_fn,height=6,width=8)
+  pdf(file=pdf_fn,height=4,width=6)
   print(ggplot(comparedf,aes(x=cutpt,y=OR,color=indicator)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=comparedf$LB,ymax=comparedf$UB)) +
           labs(title=main,x="Cut Point",y="Odds Ratio") + scale_color_manual(values=c("darkblue","grey"),name="Conditional on Stratum")+ 
           geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
