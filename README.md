@@ -17,7 +17,7 @@ Step 2. Using self-reported family history you can better stratfiy samples with 
 ## Acknowledgements
 Code base authored by Kimmo Pääkkönen, Dr. Ida Surakka, and Brooke Wolford
 
-Genome-wide polygenic score (GPS) weights from [Khera, A. V. et al. Genome-wide polygenic scores for common diseases identify individuals with risk equivalent to monogenic mutations. Nature Genetics 50, 1219 (2018).](10.1038/s41588-018-0183-z)  
+Genome-wide polygenic score (GPS) weights from [Khera, A. V. et al. Genome-wide polygenic scores for common diseases identify individuals with risk equivalent to monogenic mutations. Nature Genetics 50, 1219 (2018).](https://doi.org/10.1038/s41588-018-0183-z)   
 Weights can be downloaded [here](http://www.broadcvdi.org/informational/data).
 
 # Notes for use
