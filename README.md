@@ -55,10 +55,10 @@ Sum across the chromosomal chunks for one GRS per sample. Option to return inver
 ## FHiGR_score.R
 Calculate odds ratios and visualize differences in disease prevalence across genetic risk score quantiles and stratum.
 
-`
+``
 mkdir figures
 cut=`seq 0.8 0.01 0.99 | tr "\n" "," | sed 's/,$//g'` ; Rscript FHiGR_score.R -f MI_pheno_GRS.txt -s 16 -p 15 -g 3 --maintitle 'Family History of MI informed CAD GRS' --xlabel 'CAD GRS' -ylabel 'MI Prevalence' --legend 'MI Family History'  --cut_points $cut -o figures/MI
-`
+``
 
 ## Helper scripts
 
