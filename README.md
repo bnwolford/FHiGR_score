@@ -11,7 +11,7 @@ Table of Contents
 ## Family History informed Genetic Risk score (FHiGR score)
 
 
-Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can calclate a GRS in your study.  
+Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can estimate a GRS in your study.  
 Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.  
 
 ## Acknowledgements
@@ -52,8 +52,17 @@ Sum across the chromosomal chunks for one GRS per sample. Option to return inver
 
 `python sumGRS.py -s CHR22.AtrialFibrillation_PRS_LDpred_rho0.003_v3.sample -c AtrialFibrillation_PRS_LDpred_rho0.003_v3.config -o HUNT.AtrialFibrillation_PRS_LDpred_rho0.003_v3.GRS -i`
 
+## FHiGR_score.R
+Calculate odds ratios and visualize differences in disease prevalence across genetic risk score quantiles and stratum.
+
+`
+mkdir figures
+cut=`seq 0.8 0.01 0.99 | tr "\n" "," | sed 's/,$//g'` ; Rscript FHiGR_score.R -f MI_pheno_GRS.txt -s 16 -p 15 -g 3 --maintitle 'Family History of MI informed CAD GRS' --xlabel 'CAD GRS' -ylabel 'MI Prevalence' --legend 'MI Family History'  --cut_points $cut -o figures/MI
+`
+
 ## Helper scripts
 
 * checkDim.R
+
 
 # Change Log
