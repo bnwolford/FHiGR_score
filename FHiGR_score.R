@@ -502,7 +502,7 @@ for (l in c(1,2)){ #quantile first or no
                             cutpt=cutpts[c]))
     }}}
     sub<-d[(d$name=="standard"|d$name=="FHIGR") & d$label==label_list[l],]
-    pdf_fn<-paste(sep=".",out,"model.OR",label_list[l],"pdf")
+    pdf_fn<-paste(sep=".",out,"model.compareOR",label_list[l],"pdf")
     pdf(file=pdf_fn,height=4,width=6)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
           theme_bw() + scale_color_manual(values=c("grey","darkblue"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
@@ -510,7 +510,7 @@ for (l in c(1,2)){ #quantile first or no
     dev.off()
     
     sub<-d[(d$name=="stratum0"| d$name=="stratum1") & d$label==label_list[l],]
-    pdf_fn<-paste(sep=".",out,"model.compareOR",label_list[l],"pdf")
+    pdf_fn<-paste(sep=".",out,"model.OR",label_list[l],"pdf")
     pdf(file=pdf_fn,height=4,width=6)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
             theme_bw() + scale_color_manual(values=c("darkblue","goldenrod3"),name=legend) + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
