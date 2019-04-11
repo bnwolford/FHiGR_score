@@ -487,20 +487,20 @@ for (l in c(1,2)){ #quantile first or no
   for (c in 1:n) { #per cut point
     for (j in 1:length(obj[[l]][[c]])){ #4 data frames come out of model function
       if (j==1 & l==1 & c==1){
-        d<-data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
-             UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+          d<-data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
              LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+             UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+             pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
              label=label_list[l],
              name=names(obj[[l]][[c]])[j],
-             pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
              cutpt=cutpts[c])
     } else {
       d<-rbind(d,data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
+                            LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),  
                             UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
-                            LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+                            pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
                             label=label_list[l],
                             name=names(obj[[l]][[c]])[j],
-                            pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
                             cutpt=cutpts[c]))
     }}}
     sub<-d[(d$name=="standard"|d$name=="FHIGR") & d$label==label_list[l],]
