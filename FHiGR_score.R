@@ -501,7 +501,7 @@ for (l in c(1,2)){ #quantile first or no
                             pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
                             cutpt=cutpts[c]))
     }}}
-    sub<-d[d$name=="standard"|d$name=="FHIGR" & d$label==label_list[l],]
+    sub<-d[(d$name=="standard"|d$name=="FHIGR") & d$label==label_list[l],]
     pdf_fn<-paste(sep=".",out,"model.OR",label_list[l],"pdf")
     pdf(file=pdf_fn,height=4,width=6)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
@@ -509,7 +509,7 @@ for (l in c(1,2)){ #quantile first or no
           labs(title=main,x="Cut Point",y="Odds Ratio"))
     dev.off()
     
-    sub<-d[d$name=="stratum0"|d$name=="stratum1" & d$label==label_list[l],]
+    sub<-d[(d$name=="stratum0"| d$name=="stratum1") & d$label==label_list[l],]
     pdf_fn<-paste(sep=".",out,"model.compareOR",label_list[l],"pdf")
     pdf(file=pdf_fn,height=4,width=6)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
@@ -518,7 +518,7 @@ for (l in c(1,2)){ #quantile first or no
     dev.off()
 }
 fn<-paste(sep=".",out,"modelOR.txt")
-write.table(d,fn,quote=FALSE,col.names=T,row.names=F,sep="\t")
+write.table(format(d,digits=dig),fn,quote=FALSE,col.names=T,row.names=F,sep="\t")
 
 
 ################## Odds Ratios by contingency tables  ############# 
