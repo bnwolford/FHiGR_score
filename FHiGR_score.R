@@ -400,6 +400,7 @@ if (invNorm==TRUE){
 print(grs_col)
 
 ############# Prevalences versus GRS############# 
+## uses prev_per_quantile_stratum and prev_per_quantile functions
 
 ##make quantiles then stratify
 obj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
@@ -472,6 +473,7 @@ write.table(format(all_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE
 plotting(all_df,paste(sep="_",out,"all"),quantiles,FALSE,main,xlab,ylab,legend)  
 
 ################## Odds Ratios by model ############# 
+## uses model function
 
 if (1 %in% cutpts){ #code doesn't work with 
   cutpts<-cutpts[-which(cutpts==1)]
@@ -521,7 +523,8 @@ fn<-paste(sep=".",out,"modelOR.txt")
 write.table(format(d,digits=dig),fn,quote=FALSE,col.names=T,row.names=F,sep="\t")
 
 
-################## Odds Ratios by contingency tables  ############# 
+################## Odds Ratios by contingency tables  #############
+## uses top_quantile_stratum, top_quantile, clinical_impact functions
 #cutpts<-seq(0.8,1,by=.01)
 if (1.0 %in% cutpts){ #code doesn't work with 
   cutpts<-cutpts[-which(cutpts==1)]
@@ -562,9 +565,9 @@ for (l in c(1,2)){ #do for each division logic
   clin_df$method<-label_list[l]
   file_name<-paste(sep=".",out,"clinical_impact.txt")
   if (l==1){
-    write.table(format(clin_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t",append=FALSE)
+    write.table(format(clin_df,digits=dig),file=file_name,col.names=TRUE,quote=FALSE,row.names=FALSE,sep="\t",append=FALSE)
   }else {
-    write.table(format(clin_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t",append=TRUE)
+    write.table(format(clin_df,digits=dig),file=file_name,col.names=FALSE,quote=FALSE,row.names=FALSE,sep="\t",append=TRUE)
   }
   #plot of sensitivty and specificity, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinical_impact",label_list[l],"pdf")
