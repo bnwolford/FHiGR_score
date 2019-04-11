@@ -568,11 +568,18 @@ for (l in c(1,2)){ #do for each division logic
   }
   #plot of sensitivty and specificity, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinical_impact",label_list[l],"pdf")
+  nudge_factor<- diff(range(clin_df$falsepos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
+  if (n<=5){
+    scale<-100*as.vector(cutpts) #use all cutpts as breaks in legend
+  } else {
+    scale<-100*(c(cutpts[1],cutpts[floor(n/2)],cutpts[n])) #use max, middle, and min as cutpts in legend 
+  }
   pdf(file=pdf_fn,height=4,width=6)
   print(ggplot(clin_df,aes(x=falsepos,y=falseneg,label=cutpt*100,size=100*cutpt,color=as.factor(method))) + geom_point(alpha=0.7)+   
-          theme_bw() + scale_color_manual(values=c("darkorchid4")) + geom_text(nudge_x=100,color="black",size=5) +
-          labs(title="Sensitivity and Specificty of FHiGR relative to standard GRS",x="False Positive",y="False Negative") + guides(color=FALSE,size=guide_legend(title="Cut Point")) +
-          geom_vline(xintercept=0,linetype="dashed",color="black",alpha=0.5) + geom_hline(yintercept=0,linetype="dashed",color="black",alpha=0.5))
+          theme_bw() + scale_color_manual(values=c("darkorchid4")) + geom_text(nudge_x=nudge_factor,color="black",size=5) + 
+          labs(title="Sensitivity and Specificty of FHiGR relative to standard GRS",x="False Positive",y="False Negative") + guides(color=FALSE) +
+          geom_vline(xintercept=0,linetype="dashed",color="black",alpha=0.5) + geom_hline(yintercept=0,linetype="dashed",color="black",alpha=0.5) +
+          scale_size_continuous(name="Cut Point",breaks=scale))
   dev.off()
   
   ##odds ratio for each stratum
