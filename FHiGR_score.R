@@ -23,14 +23,17 @@ optionList <- list(
     make_option(c("-s","--stratum_col"),type="numeric",help="1-based column with stratum (e.g. family history). Must be on binary scale 1/0 with 1 being affirmative. NAs ok."),
     make_option(c("-p","--pheno_col"),type="numeric",help="1-based column with phenotype (e.g. disease status). Must be on binary scale 1/0 with 1 being case. NAs ok."),
     make_option(c("-g","--grs_col"),type="numeric",help="1-based column with GRS, not inverse normalized."),
-    make_option(c("-c","--cut_points"),type="character",help="Comma separated list of percentile values in decimal format with which to compare top and bottom of distribution",default="0.8,0.9,0.95,0.975,0.99"),
-    make_option(c("-q","--quantiles"),type="character",help="Comma separated list of q-quantiles for binning the GRS distribution (e.g. 4,10,20 gives quartile, decile, ventile).",default="4,5,10,20,100"),
-    make_option(c("-o","--output"),type="character",help="Prefix for output files",default="FHiGR"),
-    make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables",default=3),
-    make_option("--maintitle", type="character", default="",help="Plot title"),
-    make_option("--xlabel",type="character",default="GRS",help="X-axis label"),
-    make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label"),
-    make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum")
+    make_option(c("-c","--cut_points"),type="character",help="Comma separated list of percentile values in decimal format with which to compare top and bottom of distribution [default=0.8,0.9,0.95,0.975,0.99]",default="0.8,0.9,0.95,0.975,0.99"),
+    make_option(c("-q","--quantiles"),type="character",help="Comma separated list of q-quantiles for binning the GRS distribution (e.g. 4,10,20 gives quartile, decile, ventile) [default=4,5,10,20,100]",default="4,5,10,20,100"),
+    make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
+    make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
+    make_option(c("-v","--covariates"),type="character",default="",help="Comma separated list of 1-based column incides for model covariates"),
+    make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
+    make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
+    make_option("--maintitle", type="character", default="",help="Plot title [default='']"),
+    make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='']"),
+    make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='']"),
+    make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']")
 )
 
 parser <- OptionParser(
@@ -69,6 +72,9 @@ xlab<-arguments$options$xlabel
 ylab<-arguments$options$ylabel
 legend<-arguments$options$legend
 dig<-arguments$option$digits
+covar<-as.numeric(strsplit(arguments$options$covariates,",")[[1]])
+invNorm<-arguments$options$invNorm
+header<-arguments$options$header
 
 ###########################################################
 #################### FUNTIONS #############################
@@ -192,7 +198,6 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend){
        }
     )
   }
-  return(0)
 }  
 
 
@@ -235,7 +240,7 @@ top_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qfirst=FALSE,value)
   SE_list<-rep(NA,length(index))
   UB_list<-rep(NA,length(index))
   LB_list<-rep(NA,length(index))
-  for (r in c(1,2)) {
+  for (r in c(1,2)) { #iterate over stratum
     m<-counts[[r]]
     OR_list[r]<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
     SE_list[r]<-sqrt(sum(1/m)) #log odds scale
@@ -276,27 +281,125 @@ top_quantile<-function(df,GRS_col,prev_col,value){
   SE<-sqrt(sum(1/counts)) #log odds scale
   LB<-exp(log(OR)-1.96*SE)
   UB<-exp(log(OR)+1.96*SE)
-  tq<-list(OR=OR,SE=SE,LB=LB,UB=UB)
-  class(tq)<-"top_quantile_obj"
+  tq<-list(OR=OR,SE=SE,LB=LB,UB=UB,c=counts)
+  class(tq)<-"top_quantile_obj" #What is the odds ratio and 95% CI when you compare top and bottom of GRS distribution at a given cut point
   return(tq)
 }
   
+## use logistic regression to model disease ~ I(top of GRS distirbution) + covariates
+model<-function(df,grs_col,strat_col,pheno_col,covar,value,qfirst=FALSE){
+  if (value < 0.5 | value >= 1){
+    print("Percentile for dividing GRS distribution must be >= 0.5 < 1 ")
+  }
+  mobj<-list() #initialize object
+  
+  ##model I(dist) for all data
+  q<-quantile(df[[grs_col]],value) #quantile in all data
+  #top of bottom of distribution as binary variable, bottom as reference group
+  df$dist<-2
+  df$dist<-ifelse(df[[grs_col]]>q,1,0)
+  df[df$dist==2]$dist<-NA
+  dist_col<-which(names(df)=="dist")
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  adf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all 
+  mobj[["standard"]]<-adf
+  
+  ##if we want to stratify before we decide on quantiles, remake I(dist) column, otherwise use previous
+  if (qfirst!=TRUE){
+    df$dist<-2
+    for (s in c(1,2)){
+      q<-quantile(df[df[[strat_col]]==(s-1)][[grs_col]],value,na.rm=TRUE)
+      df[df[[strat_col]]==(s-1)]$dist<-ifelse(df[df[[strat_col]]==(s-1)][[grs_col]]>q,1,0)
+    } 
+    df[df$dist==2]$dist<-NA
+  }
+  dist_col<-which(names(df)=="dist")
+  
+  ## model I(dist) per stratum
+  for (s in c(1,2)){
+    formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+    glm.obj<-glm(formula=formula,data=df[df[[strat_col]]==(s-1)],family="binomial") #subsets data frame to stratum
+    df_name<-paste0("stratum",s-1)
+    assign(df_name,data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")))
+    mobj[[df_name]]<-get(df_name)
+  }
+  
+  ## model using I(dist & stratum=1)
+  df$FHIGR<-2
+  df[df[[strat_col]]==1 & df$dist==1]$FHIGR<-1
+  df[df[[strat_col]]==1 & df$dist==0]$FHIGR<-0
+  df[df[[strat_col]]==0]$FHIGR<-0
+  df[df$FHIGR==2]$FHIGR<-NA
+  df$dist<-df$FHIGR #replace I(dist) with I(dist & stratum=1)
+  
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  fhidf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist"))
+  mobj[["FHIGR"]]<-fhidf
+  class(mobj)<-"model_obj"
+  return(mobj)
+}
+
+## screen N people how many do we catch and how many do we miss given screening strategy (prioritize by family history or no)
+## expects "top_quantile_stratum_obj"
+clinical_impact<-function(obj,N=10000){
+  if (class(obj)!="top_quantile_stratum_obj"){
+    stop("clinical impact function requires top_quantile_stratum_obj from top_quantile_stratum function\n")
+  }
+  counts<-obj$c # 2 matrices, first is s=0, second is s=1
+  #first row of matrix is counts from bottom of distribution at given cut point
+  #second row of matrix is counts from top of distirbution at given cut point
+  #first column of matrix is counts of controls
+  #second column of matrix is counts of cases 
+  
+  #scenario 1, prioritize screening based on stratum=1
+  screen<-c(counts[[2]][2,1],counts[[2]][2,2]) #control,case of top distribution with stratum=1
+  no_screen<-c(sum(counts[[2]][1,1],counts[[1]][,1]),sum(counts[[2]][1,2],counts[[1]][,2])) #control,case of top distribution with stratum=0 + bottom distribution stratum=0|1
+  m<-matrix(c(no_screen,screen),nrow=2,ncol=2,byrow=TRUE)
+  mfrac<-m/sum(m)
+  scenario1<-mfrac*N
+  
+  #scenario 2, screen top percentle of GRS
+  all<-counts[[1]]+counts[[2]]
+  allfrac<-all/sum(all)
+  scenario2<-allfrac*N #no screen is top row, screen is bottom row, control is first column, case is second column
+  
+  false_pos<-(scenario1-scenario2)[2,1]
+  false_neg<-(scenario1-scenario2)[1,2]
+  return(c(false_pos,false_neg))
+}
 
 ###########################################################
 ########################## MAIN ###########################
 ###########################################################
 
 ##read data 
-df<-fread(file,header=T)
+df<-fread(file,header=header)
 #print(dim(df))
 ## To DO: check column assumptions 
 
 ##subset to data with stratum available
-subset<-df[!is.na(df[[strat_col]])]
+subset<-df[!is.na(df[[strat_col]])] #remove if NA for stratum
 print(dim(subset))
 size<-length(quantiles) #number of quantiles being tested, size of obj
+#ggplot(subset, aes_string(x=names(subset)[grs_col])) + geom_density()
 
-############# Prevalences versus GRS
+print(grs_col)
+if (invNorm==TRUE){
+  ## inverse rank normalize GRS in thepopulation
+  subset$invNormGRS<-rankNorm(subset[[grs_col]])
+  grs_col<-which(names(subset)=="invNormGRS") #new GRS col
+}
+print(grs_col)
+
+############# Prevalences versus GRS############# 
 
 ##make quantiles then stratify
 obj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
@@ -348,7 +451,7 @@ plotting(df,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlab,ylab,leg
 
 ##calculate quantiles for all data, no stratification
 all_obj<-lapply(quantiles,prev_per_quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col)
-print(all_obj)
+##print(all_obj)
 for (i in 1:size){ #across q-quantiles
     list_length<-length(all_obj[[i]]$prev)  #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
     prev<-all_obj[[i]]$prev[-list_length]
@@ -368,20 +471,67 @@ file_name<-paste(sep=".",out,"noStratify.txt")
 write.table(format(all_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
 plotting(all_df,paste(sep="_",out,"all"),quantiles,FALSE,main,xlab,ylab,legend)  
 
+################## Odds Ratios by model ############# 
 
-################## Odds Ratios 
-
-#cutpts<-seq(0.8,1,by=.01)
 if (1 %in% cutpts){ #code doesn't work with 
   cutpts<-cutpts[-which(cutpts==1)]
 }
 n<-length(cutpts)
 logical_list<-c(TRUE,FALSE)
 label_list<-c("quantileFirst","stratifyFirst")
-for (l in c(1,2)){
+obj<-list()
+for (l in c(1,2)){ #quantile first or no
+  obj[[l]]<-lapply(cutpts,model,df=subset,grs_col=grs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar,qfirst=logical_list[l])
+  for (c in 1:n) { #per cut point
+    for (j in 1:length(obj[[l]][[c]])){ #4 data frames come out of model function
+      if (j==1 & l==1 & c==1){
+        d<-data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
+             UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+             LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+             label=label_list[l],
+             name=names(obj[[l]][[c]])[j],
+             pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
+             cutpt=cutpts[c])
+    } else {
+      d<-rbind(d,data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
+                            UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+                            LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
+                            label=label_list[l],
+                            name=names(obj[[l]][[c]])[j],
+                            pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
+                            cutpt=cutpts[c]))
+    }}}
+    sub<-d[d$name=="standard"|d$name=="FHIGR" & d$label==label_list[l],]
+    pdf_fn<-paste(sep=".",out,"model.OR",label_list[l],"pdf")
+    pdf(file=pdf_fn,height=4,width=6)
+    print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
+          theme_bw() + scale_color_manual(values=c("grey","darkblue"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
+          labs(title=main,x="Cut Point",y="Odds Ratio"))
+    dev.off()
+    
+    sub<-d[d$name=="stratum0"|d$name=="stratum1" & d$label==label_list[l],]
+    pdf_fn<-paste(sep=".",out,"model.compareOR",label_list[l],"pdf")
+    pdf(file=pdf_fn,height=4,width=6)
+    print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
+            theme_bw() + scale_color_manual(values=c("darkblue","goldenrod3"),name=legend) + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
+            labs(title=main,x="Cut Point",y="Odds Ratio"))
+    dev.off()
+}
+fn<-paste(sep=".",out,"modelOR.txt")
+write.table(d,fn,quote=FALSE,col.names=T,row.names=F,sep="\t")
+
+
+################## Odds Ratios by contingency tables  ############# 
+#cutpts<-seq(0.8,1,by=.01)
+if (1.0 %in% cutpts){ #code doesn't work with 
+  cutpts<-cutpts[-which(cutpts==1)]
+}
+n<-length(cutpts)
+logical_list<-c(TRUE,FALSE)
+label_list<-c("quantileFirst","stratifyFirst")
+for (l in c(1,2)){ #do for each division logic
   obj<-lapply(cutpts,top_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=logical_list[l])
   allobj<-lapply(cutpts,top_quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col)
-  print(allobj)
   for (i in 1:n){ #across cut points
     for (j in c(1,2)){ #across stratum
       SE<-obj[[i]]$SE[j]
@@ -403,6 +553,28 @@ for (l in c(1,2)){
       allORdf<-rbind(allORdf,data.frame(OR=allobj[[i]]$OR,SE=allobj[[i]]$SE,LB=allobj[[i]]$LB,UB=allobj[[i]]$UB,cutpt=cutpts[i],row.names=NULL))
     }
   }
+  
+  #clinical impact of prioritized screening group by stratum compared to just top of GRS distribution
+  clin<-lapply(obj,clinical_impact)
+  clin_df <- data.frame(matrix(unlist(clin), nrow=length(clin), byrow=T))
+  names(clin_df)<-c("falsepos","falseneg")
+  clin_df$cutpt<-cutpts
+  clin_df$method<-label_list[l]
+  file_name<-paste(sep=".",out,"clinical_impact.txt")
+  if (l==1){
+    write.table(format(clin_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t",append=FALSE)
+  }else {
+    write.table(format(clin_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t",append=TRUE)
+  }
+  #plot of sensitivty and specificity, convert decimal cutpoints to whole numbers
+  pdf_fn<-paste(sep=".",out,"clinical_impact",label_list[l],"pdf")
+  pdf(file=pdf_fn,height=4,width=6)
+  print(ggplot(clin_df,aes(x=falsepos,y=falseneg,label=cutpt*100,size=100*cutpt,color=as.factor(method))) + geom_point(alpha=0.7)+   
+          theme_bw() + scale_color_manual(values=c("darkorchid4")) + geom_text(nudge_x=100,color="black",size=5) +
+          labs(title="Sensitivity and Specificty of FHiGR relative to standard GRS",x="False Positive",y="False Negative") + guides(color=FALSE,size=guide_legend(title="Cut Point")) +
+          geom_vline(xintercept=0,linetype="dashed",color="black",alpha=0.5) + geom_hline(yintercept=0,linetype="dashed",color="black",alpha=0.5))
+  dev.off()
+  
   ##odds ratio for each stratum
   ##write file
   file_name<-paste(sep=".",out,"OR",label_list[l],"txt")
@@ -421,8 +593,7 @@ for (l in c(1,2)){
   write.table(format(stratumORdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
   ##plot
   pdf_fn<-paste(sep=".",out,"stratumOR",label_list[l],"pdf")
-  print(pdf_fn)
-  pdf(file=pdf_fn,height=6,width=8)
+  pdf(file=pdf_fn,height=4,width=6)
   print(ggplot(stratumORdf,aes(x=cutpt,y=stratOR)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=stratumORdf$stratLB,ymax=stratumORdf$stratUB)) +
           labs(title=main,x="Cut Point",y="Odds Ratio for Stratum=1 & Top of Distribution Compared to Remaining") +
           geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
@@ -442,18 +613,10 @@ for (l in c(1,2)){
 }
 
 
-
 ##odds ratio for top vs bottom of distribution for entire dataset
 ##write file
 file_name<-paste(sep=".",out,"allOR.txt")
 write.table(format(allORdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-##plot
-#pdf_fn<-paste(sep=".","allOR.pdf")
-#pdf(file=pdf_fn,height=6,width=8)
-#print(ggplot(allORdf,aes(x=cutpt,y=OR)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=allORdf$LB,ymax=allORdf$UB)) +
-        #labs(title=main,x="Cut Point",y="Odds Ratio for Stratum=1 & Top of Distribution Compared to Remaining") + 
-        #geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
-#dev.off()
 
 
 
