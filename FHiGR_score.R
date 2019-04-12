@@ -388,14 +388,35 @@ clinical_impact<-function(obj,N=10000){
   mfrac<-m/sum(m)
   scenario1<-mfrac*N
   
-  #scenario 2, screen top percentle of GRS
+  ## scenario 2, screen all to find top GRS
   all<-counts[[1]]+counts[[2]]
   allfrac<-all/sum(all)
   scenario2<-allfrac*N #no screen is top row, screen is bottom row, control is first column, case is second column
   
   false_pos<-(scenario1-scenario2)[2,1]
   false_neg<-(scenario1-scenario2)[1,2]
-  return(c(false_pos,false_neg))
+
+  ## scenario 1
+  neg_predictive<-m[1,1]/sum(m[1,])
+  pos_predictive<-m[2,2]/sum(m[2,])
+  specificity<-m[1,1]/sum(m[,1])
+  sensitivity<-m[2,2]/sum(m[,2])
+  accuracy<-(m[1,1] + m[2,2])/sum(m) 
+
+  scenario1_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,scenario="FHiGR",cutpt=obj$i[1])
+  
+  ## scenario 2
+  m<-all
+  neg_predictive<-m[1,1]/sum(m[1,])
+  pos_predictive<-m[2,2]/sum(m[2,])
+  specificity<-m[1,1]/sum(m[,1])
+  sensitivity<-m[2,2]/sum(m[,2])
+  accuracy<-(m[1,1] + m[2,2])/sum(m)
+
+  scenario2_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,scenario="standard",cutpt=obj$i[1])
+  
+  
+  return(rbind(scenario1_df,scenario2_df))
 }
 
 ###########################################################
@@ -584,11 +605,9 @@ for (l in c(1,2)){ #do for each division logic
     }
   }
   
-  #clinical impact of prioritized screening group by stratum compared to just top of GRS distribution
+  ##clinical impact of prioritized screening group by stratum
   clin<-lapply(obj,clinical_impact)
-  clin_df <- data.frame(matrix(unlist(clin), nrow=length(clin), byrow=T))
-  names(clin_df)<-c("falsepos","falseneg")
-  clin_df$cutpt<-cutpts
+  clin_df<-bind_rows(clin)
   clin_df$method<-label_list[l]
   file_name<-paste(sep=".",out,"clinical_impact.txt")
   if (l==1){
@@ -596,7 +615,8 @@ for (l in c(1,2)){ #do for each division logic
   }else {
     write.table(format(clin_df,digits=dig),file=file_name,col.names=FALSE,quote=FALSE,row.names=FALSE,sep="\t",append=TRUE)
   }
-  #plot of sensitivty and specificity, convert decimal cutpoints to whole numbers
+  
+  #plot of false positives and false negatives in stratified versus regular screening schemes, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinical_impact",label_list[l],"pdf")
   nudge_factor<- diff(range(clin_df$falsepos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
   if (n<=5){
