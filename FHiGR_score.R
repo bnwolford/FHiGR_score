@@ -105,6 +105,9 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
     if (!sum(unique(df[[prev_col]])==c(0,1))==2) {
         print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
     }
+    if (sum(qtile)<2*length(qtile)){ #check qtile
+      print("q-quantiles should be number of divisions for data set and must be greater than 1")
+    } 
     #initialize data structures
     p<-(100/qtile)/100
     index<-c(seq(from=0,to=1,by=p)*100)
@@ -148,6 +151,9 @@ prev_per_quantile<-function(df,GRS_col,prev_col,qtile){
   if (!sum(unique(df[[prev_col]])==c(0,1))==2) {
     print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
   }
+  if (sum(qtile)<2*length(qtile)){ #check qtile
+    print("q-quantiles should be number of divisions for data set and must be greater than 1")
+  }
   #initialize data structures
   p<-(100/qtile)/100
   index<-c(seq(from=0,to=1,by=p)*100)
@@ -167,33 +173,40 @@ prev_per_quantile<-function(df,GRS_col,prev_col,qtile){
   return(pq)
 }
 
+
 ## plot prevalence per GRS quantile bin, color by stratum if stratum==TRUE
-plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend){
+plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
   #dat<-dat[complete.cases(dat),] #remove the last bins which are NA
   dat$frac<-as.numeric(sub("%","",dat$percents)) #convert factor percentages to numeric 
   dat<-dat[dat$frac!=1.00,] 
   dat$ub<-dat$prev+(1.96*dat$se)
-  dat$lb<-dat$prev-1.96*dat$se
-  if (stratum==TRUE){
-    by(dat, dat$q, 
+  dat$lb<-dat$prev-(1.96*dat$se)
+  
+  if (ymax==1){ # if ymax is not given to function, just plot to scale of data, otherwise, script can be given custom ymax to match scale of another plot
+    ymax=max(df$prev)
+  }
+  
+  if (stratum==TRUE){ #stratify
+    by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
       function (x) {
         name=unique(x$q)
         if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
         pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5)
         print(ggplot(x,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$lb,ymax=x$ub)) + 
           scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +labs(title=main) + xlab(xlab) + ylab(ylab)  + 
-          scale_x_continuous(breaks=breaks)) 
+          scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) 
         dev.off()
       }
     )
-  } else {
-    by(dat, dat$q, 
+    
+  } else { #all data
+    by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
        function (x) {
          name=unique(x$q)
          if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
          pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5)
          print(ggplot(x,aes(x=frac,y=prev)) + geom_point(color="grey") + geom_errorbar(aes(ymin=x$lb,ymax=x$ub),color="grey")  + 
-                 theme_bw() + labs(title=main) + xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks))
+                 theme_bw() + labs(title=main) + xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) 
          dev.off()
        }
     )
@@ -297,14 +310,17 @@ model<-function(df,grs_col,strat_col,pheno_col,covar,value,qfirst=FALSE){
   q<-quantile(df[[grs_col]],value) #quantile in all data
   #top of bottom of distribution as binary variable, bottom as reference group
   df$dist<-2
-  df$dist<-ifelse(df[[grs_col]]>q,1,0)
+  df$dist<-ifelse(df[[grs_col]]>q,1,0) #1 if in top, 0 in bottom
   df[df$dist==2]$dist<-NA
   dist_col<-which(names(df)=="dist")
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
                             paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
-  adf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all 
+  adf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all
+  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
+  adf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  adf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
   mobj[["standard"]]<-adf
   
   ##if we want to stratify before we decide on quantiles, remake I(dist) column, otherwise use previous
@@ -312,20 +328,23 @@ model<-function(df,grs_col,strat_col,pheno_col,covar,value,qfirst=FALSE){
     df$dist<-2
     for (s in c(1,2)){
       q<-quantile(df[df[[strat_col]]==(s-1)][[grs_col]],value,na.rm=TRUE)
-      df[df[[strat_col]]==(s-1)]$dist<-ifelse(df[df[[strat_col]]==(s-1)][[grs_col]]>q,1,0)
+      df[df[[strat_col]]==(s-1)]$dist<-ifelse(df[df[[strat_col]]==(s-1)][[grs_col]]>q,1,0) #1 if in top, 0 in bottom
     } 
     df[df$dist==2]$dist<-NA
   }
   dist_col<-which(names(df)=="dist")
   
   ## model I(dist) per stratum
-  for (s in c(1,2)){
+  for (s in c(1,2)){ #iterate over stratum
     formula<-as.formula(paste(colnames(df)[pheno_col], "~",
                             paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
                             sep = ""))
     glm.obj<-glm(formula=formula,data=df[df[[strat_col]]==(s-1)],family="binomial") #subsets data frame to stratum
     df_name<-paste0("stratum",s-1)
-    assign(df_name,data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")))
+    m<-matrix(table(df[df[[strat_col]]==(s-1)]$dist,df[df[[strat_col]]==(s-1)][[pheno_col]])/nrow(df[df[[strat_col]]==(s-1)]),byrow=FALSE,nrow=2)
+    top<-m[2,2]/sum(m[2,])  #prevalence in top of distribution
+    bottom<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+    assign(df_name,cbind(data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")),"top_prev"=top,"bottom_prev"=bottom))
     mobj[[df_name]]<-get(df_name)
   }
   
@@ -342,6 +361,9 @@ model<-function(df,grs_col,strat_col,pheno_col,covar,value,qfirst=FALSE){
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
   fhidf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist"))
+  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
+  fhidf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  fhidf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
   mobj[["FHIGR"]]<-fhidf
   class(mobj)<-"model_obj"
   return(mobj)
@@ -391,64 +413,65 @@ print(dim(subset))
 size<-length(quantiles) #number of quantiles being tested, size of obj
 #ggplot(subset, aes_string(x=names(subset)[grs_col])) + geom_density()
 
-print(grs_col)
 if (invNorm==TRUE){
   ## inverse rank normalize GRS in thepopulation
   subset$invNormGRS<-rankNorm(subset[[grs_col]])
   grs_col<-which(names(subset)=="invNormGRS") #new GRS col
 }
-print(grs_col)
 
 ############# Prevalences versus GRS############# 
 ## uses prev_per_quantile_stratum and prev_per_quantile functions
 
 ##make quantiles then stratify
-obj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
+qobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
 #print(obj)
 for (i in 1:size){ #across q-quantiles
     for (j in c(1,2)){ #across stratum
-        list_length<-length(obj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
-        prev<-obj[[i]]$prev[j,][-list_length]
-        se<-obj[[i]]$se[j,][-list_length]
-        n<-obj[[i]]$n[j,][-list_length]
-        tiles<-obj[[i]]$tiles[-1]
+        list_length<-length(qobj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
+        prev<-qobj[[i]]$prev[j,][-list_length]
+        se<-qobj[[i]]$se[j,][-list_length]
+        n<-qobj[[i]]$n[j,][-list_length]
+        tiles<-qobj[[i]]$tiles[-1]
         percents<-names(tiles)
         bins<-rep(quantiles[i],list_length-1)
         strat<-rep(j-1,list_length-1)
         if (i==1 & j==1) {
-          df<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
+          qdf<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
         } else {
-          df<-rbind(df,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
+          qdf<-rbind(qdf,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
         }
     }
 }
-file_name<-paste(sep=".",out,"quantileFirst.txt")
-write.table(format(df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(df,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlab,ylab,legend)
 
 ##stratify then calculate quantiles
-obj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=FALSE)
+sobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=FALSE)
 #print(obj)
 for (i in 1:size){ #across q-quantiles
   for (j in c(1,2)){ #across stratum
-    list_length<-length(obj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
-    prev<-obj[[i]]$prev[j,][-list_length]
-    se<-obj[[i]]$se[j,][-list_length]
-    n<-obj[[i]]$n[j,][-list_length]
-    tiles<-obj[[i]]$tiles[-1]
+    list_length<-length(sobj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
+    prev<-sobj[[i]]$prev[j,][-list_length]
+    se<-sobj[[i]]$se[j,][-list_length]
+    n<-sobj[[i]]$n[j,][-list_length]
+    tiles<-sobj[[i]]$tiles[-1]
     percents<-names(tiles)
     bins<-rep(quantiles[i],list_length-1)
     strat<-rep(j-1,list_length-1)
     if (i==1 & j==1) {
-      df<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
+      sdf<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
     } else {
-      df<-rbind(df,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
+      sdf<-rbind(sdf,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
     }
   }
 }
+
+ymax<-max(max(qdf$prev+(1.96*qdf$se)),max(sdf$prev+(1.96*sdf$se)))
+file_name<-paste(sep=".",out,"quantileFirst.txt")
+write.table(format(qdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
+plotting(df,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
+
 file_name<-paste(sep=".",out,"stratifyFirst.txt")
-write.table(format(df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(df,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlab,ylab,legend)
+write.table(format(sdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
+plotting(df,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
 
 ##calculate quantiles for all data, no stratification
 all_obj<-lapply(quantiles,prev_per_quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col)
@@ -470,7 +493,7 @@ for (i in 1:size){ #across q-quantiles
 }
 file_name<-paste(sep=".",out,"noStratify.txt")
 write.table(format(all_df,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(all_df,paste(sep="_",out,"all"),quantiles,FALSE,main,xlab,ylab,legend)  
+plotting(all_df,paste(sep="_",out,"all"),quantiles,FALSE,main,xlab,ylab,legend,ymax)  
 
 ################## Odds Ratios by model ############# 
 ## uses model function
@@ -486,11 +509,13 @@ for (l in c(1,2)){ #quantile first or no
   obj[[l]]<-lapply(cutpts,model,df=subset,grs_col=grs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar,qfirst=logical_list[l])
   for (c in 1:n) { #per cut point
     for (j in 1:length(obj[[l]][[c]])){ #4 data frames come out of model function
-      if (j==1 & l==1 & c==1){
+      if (j==1 & l==1 & c==1){ #start data frame if beginning of loops
           d<-data.frame(OR=exp(obj[[l]][[c]][[j]]['dist','Estimate']),
              LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
              UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
              pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
+             top_prev<-unique(obj[[l]][[c]][[j]]['top_prev']),
+             bottom_prev<-unique(obj[[l]][[c]][[j]]['bottom_prev']),
              label=label_list[l],
              name=names(obj[[l]][[c]])[j],
              cutpt=cutpts[c])
@@ -499,6 +524,8 @@ for (l in c(1,2)){ #quantile first or no
                             LB=exp(obj[[l]][[c]][[j]]['dist','Estimate']-1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),  
                             UB=exp(obj[[l]][[c]][[j]]['dist','Estimate']+1.96*obj[[l]][[l]][[j]]['dist','Std..Error']),
                             pval=obj[[l]][[c]][[j]]['dist','Pr...z..'],
+                            top_prev<-unique(obj[[l]][[c]][[j]]['top_prev']),
+                            bottom_prev<-unique(obj[[l]][[c]][[j]]['bottom_prev']),
                             label=label_list[l],
                             name=names(obj[[l]][[c]])[j],
                             cutpt=cutpts[c]))
