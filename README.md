@@ -29,14 +29,35 @@ bcftools, qctool v2, split, python2, and python3
 python packages: argparse, glob, math, multiprocessing, numpy, os, pandas, random, scipy, string, subprocess, sys, time, tempfile  
 R packages: optparse, data.table  
 
+## File format descriptions 
+
+* Weight file
+SNPID EFFECT_ALLELE WEIGHT CHR POS A1 A2
+header noted with #
+
+* Variant Call Format (VCF)
+CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT {GT:DS per sample}
+header noted with #
+
+* GEN (from BGEN v1.2)
+CHR SNPID RSID POS A1 A2 {Genotype trios per sample}
+with trios homozygous A1, heterozygous, homozygous A2
+chromosome number has leading 0 for 1-9
+associated .sample file should be the order of the genotype trios
+
+* Phenotype file
+Covariates (e.g. sex, birthyear, genetic principal components)
+Stratification column (e.g. family history) should be coded as 1/0, NA allowed
+Phenotype column for binary trait should be coded as 1/0, NA allowed
+
 ## VCFtoDOSEforGRS.py 
 Despite the name, this file converts .vcf to .dose or .bgen to .gen. This is the beginning, preparatory step for calculating GRS.
 Written for Python 2.7.14. This script has low memory requirements, e.g. <1 G per chromosome with ~25K markers from the weights file. Parallization into k chunks is limited by number of cpus for Python's subprocess module to use.
 
-* bgen to gen  
+* .bgen to .gen  
 `python2 ~/scripts/VCFtoDOSEforGRS.py -f AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt -c 3 -p 4 -o UKBB.CHR3.AtrialFibrillation_PRS_LDpred_rho0.003 -b ukb_imp_chr3_v3.bgen -s ukb24460_imp_chr3_v3_s487395.sample -cn 3 -k 133`
 
-* vcf to dose  
+* .vcf to .dose  
 `python VCFtoDOSEforGRS.py -f AtrialFibrillation_PRS_LDpred_rho0.003_v3.txt -c 3 -p 4 -o CHR14.AtrialFibrillation_PRS_LDpred_rho0.003_v3 -v CHR14.HRC_WGS.vcf.gz -cn 14 -k 25`
 
 ## DOSEtoGRS.py 
