@@ -181,10 +181,12 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
   dat<-dat[dat$frac!=1.00,] 
   dat$ub<-dat$prev+(1.96*dat$se)
   dat$lb<-dat$prev-(1.96*dat$se)
-  
+  dat$stratum<-as.factor(dat$stratum)
+  levels(dat$stratum)<-c("FH+","FH-")
   if (ymax==1){ # if ymax is not given to function, just plot to scale of data, otherwise, script can be given custom ymax to match scale of another plot
     ymax=max(df$prev)
   }
+
   
   if (stratum==TRUE){ #stratify
     by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
@@ -424,12 +426,12 @@ clinical_impact<-function(obj,N=10000){
 ###########################################################
 
 ##read data 
-dat<-fread(file,header=header)
+data<-fread(file,header=header)
 #print(dim(df))
 ## To DO: check column assumptions 
 
 ##subset to data with stratum available
-subset<-dat[!is.na(dat[[strat_col]])] #remove if NA for stratum
+subset<-data[!is.na(data[[strat_col]])] #remove if NA for stratum
 print(dim(subset))
 #ggplot(subset, aes_string(x=names(subset)[grs_col])) + geom_density()
 
@@ -552,7 +554,7 @@ for (l in c(1,2)){ #quantile first or no
                             cutpt=cutpts[c]))
     }}}
     sub<-d[(d$name=="standard"|d$name=="FHIGR") & d$label==label_list[l],]
-    pdf_fn<-paste(sep=".",out,"model.compareOR",label_list[l],"pdf")
+    pdf_fn<-paste(sep=".",out,"model.compare.OR",label_list[l],"pdf")
     pdf(file=pdf_fn,height=4,width=6)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
           theme_bw() + scale_color_manual(values=c("grey","darkblue"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
@@ -565,7 +567,16 @@ for (l in c(1,2)){ #quantile first or no
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
             theme_bw() + scale_color_manual(values=c("darkblue","goldenrod3"),name=legend) + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
             labs(title=main,x="Cut Point",y="Odds Ratio"))
-    dev.off()
+  dev.off()
+
+  pdf_fn<-paste(sep=".",out,"model.compare.all.OR",label_list[l],"pdf")
+  sub<-d[d$label==label_list[l],]
+  pdf(file=pdf_fn,height=4,width=6)
+  print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7) +   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
+            theme_bw() + scale_color_manual(values=c("grey","goldenrod3","darkblue","orchid4"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
+             labs(title=main,x="Cut Point",y="Odds Ratio"))
+  dev.off()
+  
 }
 fn<-paste(sep=".",out,"modelOR.txt")
 write.table(format(d,digits=dig),fn,quote=FALSE,col.names=T,row.names=F,sep="\t")
@@ -625,7 +636,7 @@ for (l in c(1,2)){ #do for each division logic
     scale<-100*(c(cutpts[1],cutpts[floor(n/2)],cutpts[n])) #use max, middle, and min as cutpts in legend 
   }
   pdf(file=pdf_fn,height=4,width=6)
-  print(ggplot(clin_df,aes(x=falsepos,y=falseneg,label=cutpt*100,size=100*cutpt,color=as.factor(method))) + geom_point(alpha=0.7)+   
+  print(ggplot(clin_df,aes(x=false_pos,y=false_neg,label=cutpt*100,size=100*cutpt,color=as.factor(method))) + geom_point(alpha=0.7)+   
           theme_bw() + scale_color_manual(values=c("darkorchid4")) + geom_text(nudge_x=nudge_factor,color="black",size=5) + 
           labs(title="Sensitivity and Specificty of FHiGR relative to standard GRS",x="False Positive",y="False Negative") + guides(color=FALSE) +
           geom_vline(xintercept=0,linetype="dashed",color="black",alpha=0.5) + geom_hline(yintercept=0,linetype="dashed",color="black",alpha=0.5) +
