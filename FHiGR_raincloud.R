@@ -29,8 +29,7 @@ optionList <- list(
   make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="",help="Plot title [default='']"),
-  make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='']"),
-  make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='']")
+  make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='']")
 )
 
 parser <- OptionParser(
