@@ -29,7 +29,7 @@ optionList <- list(
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
-  make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']"),
+  make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']")
 )
 
 parser <- OptionParser(
