@@ -12,7 +12,7 @@ print(Sys.time())
 print(sessionInfo())
 library(optparse)
 library(data.table)
-source("R_rainclouds.R") #loads several other librariesß
+source("/net/snowwhite/home/bwolford/FHiGR_score/R_rainclouds.R") #loads several other librariesß
 
 ###########################################################
 ################### Read Command Line Parameters ##########
