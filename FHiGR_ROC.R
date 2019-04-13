@@ -30,8 +30,6 @@ optionList <- list(
   make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']"),
-  make_option("--xlabel",type="character",default="False Positive Rate",help="X-axis label [default='False Positive Rate']"),
-  make_option("--ylabel",type="character",default="True Positive Rate",help="Y-axis label [default='True Positive Rate']")
 )
 
 parser <- OptionParser(
@@ -64,8 +62,8 @@ if (length(grs_col)==0){
 }
 out<-arguments$options$output
 main<-arguments$options$maintitle
-xlab<-arguments$options$xlabel
-ylab<-arguments$options$ylabel
+xlabel<-arguments$options$xlabel
+ylabel<-arguments$options$ylabel
 dig<-arguments$option$digits
 invNorm<-arguments$options$invNorm
 header<-arguments$options$header
@@ -162,10 +160,10 @@ for (l in c(1,2)){ #do for each division logic
   roc_df<-rbind(all,roc_df)
   
   pdf_fn<-paste(sep=".",out,label_list[l],"ROC.pdf")
-  pdf(file=pdf_fn,height=4,width=4)
+  pdf(file=pdf_fn,height=4,width=6)
   print(ggplot(roc_df,aes(x=fpr,y=tpr,color=method)) + theme_bw() + geom_point() +
     coord_cartesian(xlim=c(0,1),ylim=c(0,1)) + scale_color_manual(values=c("grey","darkblue")) + 
-    labs(title=main,xlab=xlab,ylab=ylab))
+    labs(title=main,xlab="False Positive Rate",ylab="True Positive Rate"))
   dev.off()
   
 }
