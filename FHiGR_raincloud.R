@@ -103,7 +103,7 @@ ggplot(subset,aes(x=group,y=score,fill=group,color=group)) +
   geom_flat_violin(alpha=0.2, position = position_nudge(x = .25, y = 0),adjust =1, trim = FALSE)+
   geom_point(alpha=0.2, position = position_jitter(width = .15), size = .25)+
   geom_boxplot(aes(x = as.numeric(group)+0.25, y = score),outlier.shape = NA, alpha = 0.3, width = .1, colour = "BLACK") +
-  coord_flip(ylim=c(xmin,xmax))+ theme_cowplot() + labs(y=ylab,x=xlab,title=main) + guides(fill = FALSE, colour = FALSE) +
+  coord_flip(ylim=c(xmin,xmax))+ theme_cowplot() + labs(ylab="GRS",title=main) + guides(fill = FALSE, colour = FALSE) +
     scale_color_manual(values=c("goldenrod","darkblue")) + scale_fill_manual(values=c("goldenrod","darkblue"))
 dev.off()
 
@@ -123,15 +123,15 @@ ggplot(df,aes(x=group,y=score,fill=group,color=group)) +
   geom_flat_violin(alpha=0.2, position = position_nudge(x = .20, y = 0),adjust =1, trim = FALSE)+
   geom_point(alpha=0.2, position = position_jitter(width = .15), size = .20)+   
   geom_boxplot(aes(x = as.numeric(group)+0.20, y = score),outlier.shape = NA, alpha = 0.3, width = .1, colour = "BLACK") +
-  coord_flip()+ theme_cowplot() + labs(y=ylab,x=xlab,title=main) + guides(fill = FALSE, colour = FALSE) +
+  coord_flip()+ theme_cowplot() + labs(y="GRS",title=main) + guides(fill = FALSE, colour = FALSE) +
   scale_color_manual(values=c("goldenrod","darkblue","grey")) + scale_fill_manual(values=c("goldenrod","darkblue","grey")) +
-  scale_x_discrete(labels=c("Family History Negative","Family History Positive","Population")) + background_grid(major="xy")
+  scale_x_discrete(labels=c("Family History Negative","Family History Positive","Population")) + background_grid(major="xy",minor="xy")
 dev.off()
 
 levels(df$group)<-c("Family History Negative","Family History Positive","Population")
 pdf_fn<-paste(sep=".",out,"compare_distribution.pdf")
 pdf(file=pdf_fn,height=4,width=4)
 ggplot(df,aes(x=score,fill=group,color=group)) + geom_density(alpha=0.2) + theme_cowplot() + scale_color_manual(values=c("goldenrod","darkblue","grey")) + 
-  scale_fill_manual(values=c("goldenrod","darkblue","grey")) +  labs(y=ylab,x=xlab,title=main) + guides(fill = FALSE, colour = FALSE)
+  scale_fill_manual(values=c("goldenrod","darkblue","grey")) +  labs(x="GRS",title=main) + guides(fill = FALSE, colour = FALSE)
 dev.off()
 
