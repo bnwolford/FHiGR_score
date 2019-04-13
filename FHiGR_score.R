@@ -629,7 +629,7 @@ for (l in c(1,2)){ #do for each division logic
   
   #plot of false positives and false negatives in stratified versus regular screening schemes, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinical_impact",label_list[l],"pdf")
-  nudge_factor<- diff(range(clin_df$falsepos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
+  nudge_factor<- diff(range(clin_df$false_pos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
   if (n<=5){
     scale<-100*as.vector(cutpts) #use all cutpts as breaks in legend
   } else {
