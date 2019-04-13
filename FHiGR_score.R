@@ -424,14 +424,13 @@ clinical_impact<-function(obj,N=10000){
 ###########################################################
 
 ##read data 
-df<-fread(file,header=header)
+dat<-fread(file,header=header)
 #print(dim(df))
 ## To DO: check column assumptions 
 
 ##subset to data with stratum available
-subset<-df[!is.na(df[[strat_col]])] #remove if NA for stratum
+subset<-dat[!is.na(dat[[strat_col]])] #remove if NA for stratum
 print(dim(subset))
-size<-length(quantiles) #number of quantiles being tested, size of obj
 #ggplot(subset, aes_string(x=names(subset)[grs_col])) + geom_density()
 
 if (invNorm==TRUE){
@@ -444,6 +443,7 @@ if (invNorm==TRUE){
 ## uses prev_per_quantile_stratum and prev_per_quantile functions
 
 ##make quantiles then stratify
+size<-length(quantiles) #number of quantiles being tested, size of obj
 qobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
 #print(obj)
 for (i in 1:size){ #across q-quantiles
@@ -488,11 +488,11 @@ for (i in 1:size){ #across q-quantiles
 ymax<-max(max(qdf$prev+(1.96*qdf$se)),max(sdf$prev+(1.96*sdf$se)))
 file_name<-paste(sep=".",out,"quantileFirst.txt")
 write.table(format(qdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(df,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
+plotting(qdf,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
 
 file_name<-paste(sep=".",out,"stratifyFirst.txt")
 write.table(format(sdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(df,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
+plotting(sdf,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlab,ylab,legend,ymax)
 
 ##calculate quantiles for all data, no stratification
 all_obj<-lapply(quantiles,prev_per_quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col)
