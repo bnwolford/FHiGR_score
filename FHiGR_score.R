@@ -193,7 +193,7 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
       function (x) {
         name=unique(x$q)
         if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
-        pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5)
+        pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5,useDingbats=FALSE)
         print(ggplot(x,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$lb,ymax=x$ub)) + 
           scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +labs(title=main) + xlab(xlab) + ylab(ylab)  + 
           scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) 
@@ -206,7 +206,7 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
        function (x) {
          name=unique(x$q)
          if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
-         pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5)
+         pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5, useDingbats=FALSE)
          print(ggplot(x,aes(x=frac,y=prev)) + geom_point(color="grey") + geom_errorbar(aes(ymin=x$lb,ymax=x$ub),color="grey")  + 
                  theme_bw() + labs(title=main) + xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) 
          dev.off()
@@ -555,7 +555,7 @@ for (l in c(1,2)){ #quantile first or no
     }}}
     sub<-d[(d$name=="standard"|d$name=="FHIGR") & d$label==label_list[l],]
     pdf_fn<-paste(sep=".",out,"model.compare.OR",label_list[l],"pdf")
-    pdf(file=pdf_fn,height=4,width=6)
+    pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
           theme_bw() + scale_color_manual(values=c("grey","darkblue"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
           labs(title=main,x="Cut Point",y="Odds Ratio"))
@@ -563,7 +563,7 @@ for (l in c(1,2)){ #quantile first or no
     
     sub<-d[(d$name=="stratum0"| d$name=="stratum1") & d$label==label_list[l],]
     pdf_fn<-paste(sep=".",out,"model.OR",label_list[l],"pdf")
-    pdf(file=pdf_fn,height=4,width=6)
+    pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
     print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
             theme_bw() + scale_color_manual(values=c("darkblue","goldenrod3"),name=legend) + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
             labs(title=main,x="Cut Point",y="Odds Ratio"))
@@ -571,7 +571,7 @@ for (l in c(1,2)){ #quantile first or no
 
   pdf_fn<-paste(sep=".",out,"model.compare.all.OR",label_list[l],"pdf")
   sub<-d[d$label==label_list[l],]
-  pdf(file=pdf_fn,height=4,width=6)
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(sub,aes(x=cutpt,y=OR,color=as.factor(name))) + geom_point(alpha=0.7) +   geom_errorbar(aes(ymin=sub$LB,ymax=sub$UB)) +
             theme_bw() + scale_color_manual(values=c("grey","goldenrod3","darkblue","orchid4"),name="") + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
              labs(title=main,x="Cut Point",y="Odds Ratio"))
@@ -635,7 +635,7 @@ for (l in c(1,2)){ #do for each division logic
   } else {
     scale<-100*(c(cutpts[1],cutpts[floor(n/2)],cutpts[n])) #use max, middle, and min as cutpts in legend 
   }
-  pdf(file=pdf_fn,height=4,width=6)
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(clin_df,aes(x=false_pos,y=false_neg,label=cutpt*100,size=100*cutpt,color=as.factor(method))) + geom_point(alpha=0.7)+   
           theme_bw() + scale_color_manual(values=c("darkorchid4")) + geom_text(nudge_x=nudge_factor,color="black",size=5) + 
           labs(title="Sensitivity and Specificty of FHiGR relative to standard GRS",x="False Positive",y="False Negative") + guides(color=FALSE) +
@@ -649,7 +649,7 @@ for (l in c(1,2)){ #do for each division logic
   write.table(format(ORdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
   ##plot
   pdf_fn<-paste(sep=".",out,"OR",label_list[l],"pdf")
-  pdf(file=pdf_fn,height=4,width=6)
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(ORdf,aes(x=cutpt,y=OR,color=as.factor(stratum))) + geom_point(alpha=0.7)+   geom_errorbar(aes(ymin=ORdf$LB,ymax=ORdf$UB)) +
     theme_bw() + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) + geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) +
     labs(title=main,x="Cut Point",y="Odds Ratio"))
@@ -661,7 +661,7 @@ for (l in c(1,2)){ #do for each division logic
   write.table(format(stratumORdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
   ##plot
   pdf_fn<-paste(sep=".",out,"stratumOR",label_list[l],"pdf")
-  pdf(file=pdf_fn,height=4,width=6)
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(stratumORdf,aes(x=cutpt,y=stratOR)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=stratumORdf$stratLB,ymax=stratumORdf$stratUB)) +
           labs(title=main,x="Cut Point",y="Odds Ratio for Stratum=1 & Top of Distribution Compared to Remaining") +
           geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
@@ -673,7 +673,7 @@ for (l in c(1,2)){ #do for each division logic
   names(stratumORdf)<-names(allORdf)
   comparedf<-rbind(stratumORdf,allORdf)
   pdf_fn<-paste(sep=".",out,"compareOR",label_list[l],"pdf")
-  pdf(file=pdf_fn,height=4,width=6)
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(comparedf,aes(x=cutpt,y=OR,color=indicator)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=comparedf$LB,ymax=comparedf$UB)) +
           labs(title=main,x="Cut Point",y="Odds Ratio") + scale_color_manual(values=c("darkblue","grey"),name="Conditional on Stratum")+ 
           geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
