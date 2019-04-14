@@ -304,15 +304,15 @@ for (i in 1:size){ #across q-quantiles
   png_fn<-paste(sep=".",out,quantiles[i],"FHiGRS.png")
   ##make pdf
   pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/35,dotsize=0.5) + 
-    scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) + coord_cartesian(ylim=c(0,0.4))+
-    theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw() )
+  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/40,dotsize=0.5) + 
+    scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+    theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   ##make png
-  png(file=png_fn,height=1250,width=1500,res=200)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/35,dotsize=0.5) + 
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) + coord_cartesian(ylim=c(0,0.4))+
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw())
+  png(file=png_fn,height=1000,width=1200,res=200)
+  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/40,dotsize=0.5) + 
+          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   
   ### GRS dotplot
@@ -322,13 +322,13 @@ for (i in 1:size){ #across q-quantiles
   pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
   print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/30,dotsize=0.5) + 
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw())
+          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   ##make png
   png(file=png_fn,height=1250,width=1500,res=200)
-  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/35,dotsize=0.5) + 
+  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/30,dotsize=0.5) + 
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw())
+          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   
   ## compare GRS and FHIGRS with logistic regression
