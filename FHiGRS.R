@@ -141,9 +141,6 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
   gdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"GRS")) #standard GRS 
-  m<-matrix(table(df[[grs_col]],df[[pheno_col]]),byrow=FALSE,nrow=2)
-  gdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
-  gdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
   mobj[["GRS"]]<-gdf
   
   
@@ -152,12 +149,8 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
                               paste(colnames(df)[c(covar,fhigrs_col)], collapse = "+"),
                               sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
-  m<-matrix(table(df[[fhigrs_col]],df[[pheno_col]]),byrow=FALSE,nrow=2)
   fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FHIGRS"))
-  fdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
-  fdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
-  mobj[["FHIGRS"]]<-fdf
-    
+  mobj[["FHiGRS"]]<-fdf
     
   ## model for family history + GRS, additive
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
@@ -165,9 +158,16 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
   adf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FH","GRS"))
-  adf$bottom_prev<-NA
-  adf$top_prev<-NA
   mobj[["additive"]]<-adf
+  
+  ## model for family history 
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,strat_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FH"))
+  mobj[["family"]]<-fdf
+  
   class(mobj)<-"model_obj"
   return(mobj)
   #TO DO: compare model fit 
@@ -175,21 +175,21 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
 
 
 ## screen N people how many do we catch and how many do we miss given screening strategy (prioritize by family history or no)
-## expects "top_quantile_stratum_obj"
-clinical_impact<-function(df,value,grs_col,fhigrs_col,N=10000){
-  
-  ## inverse rank normalize GRS in the population because FHIGRS is inv normal scale
+#OR and 95% confidence intervals for 2 by 2 contingency tables of cases/control in top/bottom distribution for various scenarios 
+clinical_impact<-function(df,value,grs_col,fhigrs_col,strat_col,N=10000,qfirst=FALSE){
+
+  ## inverse rank normalize standard GRS in the population because FHIGRS is inv normal scale
   df$invNormGRS<-rankNorm(df[[grs_col]])
   grs_col<-which(names(df)=="invNormGRS") #new GRS col
   counts<-list(rep(NA,2))
   score_list<-c(fhigrs_col,grs_col)
   for (k in c(1,2)){
-    q<-quantile(df[[score_list[k]]],value)
+    q<-quantile(df[[score_list[k]]],value) #take quantile in score of interest
     df$dist<-2
     df$dist<-ifelse(df[[score_list[k]]]>q,1,0) #1 if in top, 0 in bottom
     df[df$dist==2]$dist<-NA
     dist_col<-which(names(df)=="dist")
-    counts[[k]]<-as.matrix(table(df[[pheno_col]],df[[dist_col]]))
+    counts[[k]]<-as.matrix(table(df[[pheno_col]],df[[dist_col]])) #2 by 2 table of binary phenotype and binary top/bottom of distribution
   }
   
   #first row of matrix is counts from bottom of distribution at given cut point
@@ -198,17 +198,20 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,N=10000){
   #second column of matrix is counts of cases 
   
   #FHIGRS
-  screen<-c(counts[[2]][2,1],counts[[2]][2,2]) #control,case of top distribution with stratum=1
-  no_screen<-c(sum(counts[[2]][1,1],counts[[1]][,1]),sum(counts[[2]][1,2],counts[[1]][,2])) #control,case of top distribution with stratum=0 + bottom distribution stratum=0|1
+  screen<-c(counts[[1]][2,1],counts[[1]][2,2]) #control,case of top distribution
+  no_screen<-c(sum(counts[[1]][1,1],counts[[1]][,1]),sum(counts[[1]][1,2],counts[[1]][,2])) #control,case of bottom distribution
   m<-matrix(c(no_screen,screen),nrow=2,ncol=2,byrow=TRUE)
-  mfrac<-m/sum(m)
-  scenario1<-mfrac*N
+  m_frac<-m/sum(m)
+  scenario1<-m_frac*N
   
   ##GRS
-  all<-counts[[1]]+counts[[2]]
-  allfrac<-all/sum(all)
-  scenario2<-allfrac*N #no screen is top row, screen is bottom row, control is first column, case is second column
+  screen<-c(counts[[2]][2,1],counts[[2]][2,2]) #control,case of top distribution
+  no_screen<-c(sum(counts[[2]][1,1],counts[[2]][,1]),sum(counts[[2]][1,2],counts[[2]][,2])) #control,case of bottom distribution
+  grsm<-matrix(c(no_screen,screen),nrow=2,ncol=2,byrow=TRUE)
+  grsm_frac<-grsm/sum(grsm)
+  scenario2<-grsm_frac*N #no screen is top row, screen is bottom row, control is first column, case is second column
   
+  #FHIGRS relative to GRS
   false_pos<-(scenario1-scenario2)[2,1]
   false_neg<-(scenario1-scenario2)[1,2]
   
@@ -218,20 +221,95 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,N=10000){
   specificity<-m[1,1]/sum(m[,1])
   sensitivity<-m[2,2]/sum(m[,2])
   accuracy<-(m[1,1] + m[2,2])/sum(m) 
-  
-  scenario1_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,scenario="FHiGR",cutpt=value)
+  top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
+  bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  OR<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
+  SE<-sqrt(sum(1/m)) #log odds scale
+  LB<-exp(log(OR)-1.96*SE)
+  UB<-exp(log(OR)+1.96*SE)
+  scenario1_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy, OR=OR,SE=SE, UB=UB, LB=LB,top_prev,bottom_prev,scenario="FHiGRS",cutpt=value)
   
   ## scenario 2 GRS
-  m<-all
+  m<-grsm
   neg_predictive<-m[1,1]/sum(m[1,])
   pos_predictive<-m[2,2]/sum(m[2,])
   specificity<-m[1,1]/sum(m[,1])
   sensitivity<-m[2,2]/sum(m[,2])
   accuracy<-(m[1,1] + m[2,2])/sum(m)
+  top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
+  bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  OR<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
+  SE<-sqrt(sum(1/m)) #log odds scale
+  LB<-exp(log(OR)-1.96*SE)
+  UB<-exp(log(OR)+1.96*SE)
+  scenario2_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,  OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="GRS",cutpt=value)
   
-  scenario2_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,scenario="GRS",cutpt=value)
+  #scenario 3 GRS stratified by FH
+  #top dist is > quantile and FH=1, reference group is < quantile and FH=1 +  all of FH=0
+  index<-c(value*100,100)
+  prevalences<-matrix(NA,2,length(index)) #initialize prevalence matrix
+  counts<-list(matrix(NA,length(index),length(index)),matrix(NA,length(index),length(index))) #list of matrices, one matrix per stratum
+  ses<-matrix(NA,2,length(index))#initialize se matrix
+  if (qfirst==TRUE) { #make quantiles before stratifying data
+    tiles<-quantile(df[[grs_col]],c(0,value,1))
+    for (i in 1:length(index)) {
+      for (r in c(1,2)){ #iterate over stratum
+        prev_list<-df[df[[grs_col]] > tiles[i] & df[[grs_col]] <= tiles[i+1] & df[[strat_col]]==(r-1)][[pheno_col]]
+        prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
+        ses[r,i]<-sqrt((prevalences[i]*(1-prevalences[i]))/length(prev_list)) #what is SE for this prevalence
+        counts[[r]][i,]<-as.vector(table(prev_list)) #counts for OR
+    }}
+  } else {
+      for (r in c(1,2)){ #iterate over stratum
+        sdf<-df[df[[strat_col]]==(r-1),] #make data set for one stratum
+        tiles<-quantile(sdf[[grs_col]],c(0,value,1)) #quantile values
+        for (i in 1:length(index)) {
+          prev_list<-sdf[sdf[[grs_col]] > tiles[i] & sdf[[grs_col]] <= tiles[i+1]][[pheno_col]]
+          prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
+          ses[r,i]<-sqrt((prevalences[r,i]*(1-prevalences[r,i]))/length(prev_list)) #what is SE for this prevalence
+          counts[[r]][i,]<-as.vector(table(prev_list))
+        }}}
+  num<-counts[[2]][2,2]/counts[[2]][2,1] #case/control of top distribution with stratum=1
+  denom<-sum(counts[[2]][1,2],counts[[1]][,2])/sum(counts[[2]][1,1],counts[[1]][,1]) #case/control of top distribution with stratum=0 + bottom distribution stratum=0|1
+  OR<-num/denom
+  SE<-sqrt(sum(1/counts[[2]][2,2],1/counts[[2]][2,1],1/sum(counts[[2]][1,2],counts[[1]][,2]),1/sum(counts[[2]][1,1],counts[[1]][,1])))
+  LB<-exp(log(OR)-1.96*SE)
+  UB<-exp(log(OR)+1.96*SE)
+  top_prev<-counts[[2]][2,2]/sum(counts[[2]][2,]) #cases in top dist over all in top
+  bottom_prev<-sum(counts[[1]][,2],counts[[2]][1,2])/(sum(counts[[2]][1,])+sum(counts[[1]])) #cases in bottom dist over all in bottom
   
-  return(rbind(scenario1_df,scenario2_df))
+  #FH+GRS relative to GRS
+  strat<-matrix(c(sum(counts[[2]][1,2],counts[[1]][,2]),sum(counts[[2]][1,1],counts[[1]][,1]),counts[[2]][2,2],counts[[2]][2,1]),nrow=2,ncol=2,byrow=TRUE)
+  stratfrac<-strat/sum(strat)
+  scenario3<-stratfrac*N #no screen is top row, screen is bottom row, control is first column, case is second column
+  false_pos<-(scenario3-scenario2)[2,1]
+  false_neg<-(scenario3-scenario2)[1,2]
+  
+  scenario3_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy, OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="GRS+FH",cutpt=value)
+  
+  #scenario 4 just family history
+  m<-table(df[[strat_col]],df[[pheno_col]])
+  neg_predictive<-m[1,1]/sum(m[1,])
+  pos_predictive<-m[2,2]/sum(m[2,])
+  specificity<-m[1,1]/sum(m[,1])
+  sensitivity<-m[2,2]/sum(m[,2])
+  accuracy<-(m[1,1] + m[2,2])/sum(m)
+  top_prev<-m[2,2]/sum(m[2,]) #prevalence in family history positive
+  bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in family history negative
+  OR<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
+  SE<-sqrt(sum(1/m)) #log odds scale
+  LB<-exp(log(OR)-1.96*SE)
+  UB<-exp(log(OR)+1.96*SE)
+  
+  #FH relative to GRS
+  fhfrac<-m/sum(m)
+  scenario4<-fhfrac*N #no screen is top row, screen is bottom row, control is first column, case is second column
+  false_pos<-(scenario4-scenario2)[2,1]
+  false_neg<-(scenario4-scenario2)[1,2]
+  
+  scenario4_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy, OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="FH",cutpt=0)
+
+  return(rbind(scenario1_df,scenario2_df,scenario3_df,scenario4_df))
 }
 
 
@@ -250,6 +328,7 @@ print(dim(subset))
 
 ##stratify then calculate quantiles
 sobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=FALSE)
+print(sobj)
 
 #print(sobj)
 size<-length(sobj) #number of quantiles being tested, size of obj
@@ -293,8 +372,6 @@ for (i in 1:size){ #across q-quantiles
   }
   qsub$grs_rank<-qsub[[grs_col]]+qsub$rank #add rank to GRS
   qsub$FHIGRS<-qnorm((rank(qsub$grs_rank,na.last="keep")-0.5)/sum(!is.na(qsub$grs_rank))) #new FHIGRS
-
-  ##ggplot(subset,aes(x=FHIGRS)) + geom_density()
   
   ### FHiGR dotplot
   qsub[[strat_col]]<-as.factor(qsub[[strat_col]])
@@ -304,13 +381,13 @@ for (i in 1:size){ #across q-quantiles
   png_fn<-paste(sep=".",out,quantiles[i],"FHiGRS.png")
   ##make pdf
   pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/40,dotsize=0.5) + 
+  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) + 
     scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
     theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   ##make png
   png(file=png_fn,height=1000,width=1200,res=200)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/40,dotsize=0.5) + 
+  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) + 
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
@@ -320,32 +397,30 @@ for (i in 1:size){ #across q-quantiles
   png_fn<-paste(sep=".",out,quantiles[i],"GRS.png")
   qsub$invNormGRS<-rankNorm(qsub[[grs_col]])
   pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/30,dotsize=0.5) + 
+  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) + 
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   ##make png
   png(file=png_fn,height=1250,width=1500,res=200)
-  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/30,dotsize=0.5) + 
+  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/25,dotsize=0.5) + 
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
   dev.off()
   
-  ## compare GRS and FHIGRS with logistic regression
+  ## compare GRS and FHIGRS with logistic regression and covariates
   fhigrs_col<-which(names(qsub)=="FHIGRS")
   qsub[[strat_col]]<-as.numeric(qsub[[strat_col]])-1 #turn strat back to value
   mobj<-model(df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar)
   print(mobj)
-  rowname_list<-c("GRS","FHIGRS","GRS")
-  score_list<-c("GRS","FHIGRS","GRS+FH")
-  for (l in c(1,2,3)){
+  rowname_list<-c("GRS","FHiGRS","GRS","FH") #select coefficient with this name from the model 
+  score_list<-c("GRS","FHiGRS","GRS+FH","FH") #secnario being tested 
+  for (l in 1:length(mobj)){ #loop over list from model function
     if (i==1 & l==1){
     d<-data.frame(OR=exp(mobj[[l]][rowname_list[l],'Estimate']),
                   LB=exp(mobj[[l]][rowname_list[l],'Estimate']-1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                   UB=exp(mobj[[l]][rowname_list[l],'Estimate']+1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                   pval=mobj[[l]][score_list[l],'Pr...z..'],
-                  top_prev<-unique(mobj[[l]]['top_prev']),
-                  bottom_prev<-unique(mobj[[l]]['bottom_prev']),
                   score=score_list[l],
                   qtile=quantiles[i])
     } else {
@@ -353,8 +428,6 @@ for (i in 1:size){ #across q-quantiles
                             LB=exp(mobj[[l]][rowname_list[l],'Estimate']-1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                             UB=exp(mobj[[l]][rowname_list[l],'Estimate']+1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                             pval=mobj[[l]][score_list[l],'Pr...z..'],
-                            top_prev<-unique(mobj[[l]]['top_prev']),
-                            bottom_prev<-unique(mobj[[l]]['bottom_prev']),
                             score=score_list[l],
                             qtile=quantiles[i]))
       
@@ -362,11 +435,19 @@ for (i in 1:size){ #across q-quantiles
   }
   
   
-  ## quantify clinical impact
-  obj<-lapply(cutpts,clinical_impact,df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col)
-  clin_df<-bind_rows(obj)
-  file_n<-paste(sep=".",out,"clinicalImpact.txt")
-  write.table(format(clin_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+  #To do: do for every qtile, put at end  of main loop here
+  ## compare GRS, FHIGRS, GRS+FH, and FH with 2 by 2 contingency tables, also clinical impact and false negatives/positives/accuracy 
+  logical_list<-c(TRUE,FALSE)
+  label_list<-c("quantileFirst","stratifyFirst")
+  for (qlogic in c(1,2)){ #over 2 logic options for creating quantiles 
+    obj<-lapply(cutpts,clinical_impact,df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
+    if (qlogic==1 & i==1) {
+      clin_df<-data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i])
+    } else {
+      clin_df<-rbind(clin_df,data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i]))
+    }
+  }
+  
   #plot of false positives and false negatives in stratified versus regular screening schemes, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinicalImpact.pdf")
   nudge_factor<- diff(range(clin_df$false_pos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
@@ -385,17 +466,34 @@ for (i in 1:size){ #across q-quantiles
   dev.off()
  
 }
-#write table 
-file_n<-paste(sep=".",out,"compareScores.txt")
+
+#write table comparing scores from logistic regression across # of bins to divide data for FHIGRS
+file_n<-paste(sep=".",out," model.compareScores.txt")
 write.table(format(d,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
 ##plot comparison
-pdf_fn<-paste(sep=".",out,"compare.pdf")
+pdf_fn<-paste(sep=".",out,"model.compareScores.pdf")
 pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
 print(ggplot(d,aes(x=qtile,y=OR,color=score)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=d$LB,ymax=d$UB)) + scale_x_continuous(breaks=quantiles) + 
-        labs(title=main,x="Number of Quantiles in which Prevalence is Estimated",y="Odds Ratio for Score") + scale_color_manual(values=c("grey","darkblue","orchid4"),name="") +
+        labs(title=main,x="Number of Quantiles in which Prevalence is Estimated",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
         geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
 dev.off()
 
+
+#write table comparing scores from 2 by 2 contingency tables across # of bins to divide data for FHIGRS
+file_n<-paste(sep=".",out,"table.compareScores.txt")
+write.table(format(clin_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+levels(clin_df$scenario)<-c("GRS","FHiGRS","GRS+FH","FH")
+#plot comparison 
+by(clin_df, clin_df$qtile,
+   function(x){
+      name=unique(x$qtile)
+      pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
+      pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+      print(ggplot(x,aes(x=cutpt,y=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) +
+        labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="",alpha=0.5) +
+        geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
+    dev.off()
+})
 
 
 
