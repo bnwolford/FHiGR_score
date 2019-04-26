@@ -201,14 +201,14 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
       }
     )
     
-  } else { #all data
+  } else { #all data, plotting hacks to keep plot size the same as stratum
     by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
        function (x) {
          name=unique(x$q)
          if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
          pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5, useDingbats=FALSE)
-         print(ggplot(x,aes(x=frac,y=prev)) + geom_point(color="grey") + geom_errorbar(aes(ymin=x$lb,ymax=x$ub),color="grey")  + 
-                 theme_bw() + labs(title=main) + xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) 
+         print(ggplot(x,aes(x=frac,y=prev,color=as.factor(1))) + geom_point() + scale_color_manual(values=c("grey"),guide=guide_legend(override.aes=list(color="white")),name=legend) + geom_errorbar(aes(ymin=x$lb,ymax=x$ub),color="grey")  + 
+               theme_bw() + labs(title=main) + xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax))) + theme(legend.text = element_text(color = "white"), legend.title = element_text(color = "white"), legend.key = element_rect(fill = "white"))
          dev.off()
        }
     )
