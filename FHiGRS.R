@@ -128,6 +128,7 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
   return(pqs)
 }
 
+
 ###### model function
 ## use logistic regression to model disease ~ GRS + covariates
 model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
@@ -136,13 +137,13 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
   df$invNormGRS<-rankNorm(df[[grs_col]])
   grs_col<-which(names(df)=="invNormGRS") #new GRS col
   
+  #model for GRS
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
                             paste(colnames(df)[c(covar,grs_col)], collapse = "+"),
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
   gdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"GRS")) #standard GRS 
   mobj[["GRS"]]<-gdf
-  
   
   ## model for FHIGRS
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
@@ -152,13 +153,14 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
   fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FHIGRS"))
   mobj[["FHiGRS"]]<-fdf
     
-  ## model for family history + GRS, additive
+  ## model for family history + GRS with interaction term
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
-                            paste(colnames(df)[c(covar,strat_col,grs_col)], collapse = "+"),
+                            paste(colnames(df)[c(covar)], collapse = "+"), "+" ,
+                            paste(colnames(df)[c(strat_col,grs_col)],collapse="*"),
                             sep = ""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
-  adf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FH","GRS"))
-  mobj[["additive"]]<-adf
+  idf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FH","GRS","FH*GRS"))
+  mobj[["interaction"]]<-idf
   
   ## model for family history 
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
@@ -170,13 +172,103 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar){
   
   class(mobj)<-"model_obj"
   return(mobj)
-  #TO DO: compare model fit 
+  #To do: compare models with AIC, anova, hoslem
+}
+
+
+## use logistic regression to model disease ~ I(top of GRS distribution) + covariates
+model_indicator<-function(df,value,fhigrs_col,grs_col,strat_col,pheno_col,covar,qfirst=FALSE){
+  if (value < 0.5 | value >= 1){
+    print("Percentile for dividing GRS/FHiGRS distribution must be >= 0.5 < 1 ")
+  }
+  mobj<-list() #initialize object
+  
+  ##model I(GRS distribution) for all data
+  #to do: inv normalize GRS?
+  q<-quantile(df[[grs_col]],value) #quantile in all data
+  #top of bottom of distribution as binary variable, bottom as reference group
+  df$dist<-2
+  df$dist<-ifelse(df[[grs_col]]>q,1,0) #1 if in top, 0 in bottom
+  df[df$dist==2]$dist<-NA
+  dist_col<-which(names(df)=="dist")
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  gdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all
+  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
+  gdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  gdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
+  mobj[["GRS"]]<-gdf
+  
+  ##if we want to stratify before we decide on quantiles, remake I(GRS distribution) column, otherwise use previous
+  if (qfirst!=TRUE){
+    df$dist<-2
+    for (s in c(1,2)){
+      q<-quantile(df[df[[strat_col]]==(s-1)][[grs_col]],value,na.rm=TRUE)
+      df[df[[strat_col]]==(s-1)]$dist<-ifelse(df[df[[strat_col]]==(s-1)][[grs_col]]>q,1,0) #1 if in top, 0 in bottom
+    } 
+    df[df$dist==2]$dist<-NA
+  }
+  dist_col<-which(names(df)=="dist")
+  
+  ## model I(dist) per stratum
+  for (s in c(1,2)){ #iterate over stratum
+    formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                              paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                              sep = ""))
+    glm.obj<-glm(formula=formula,data=df[df[[strat_col]]==(s-1)],family="binomial") #subsets data frame to stratum
+    df_name<-paste0("stratum",s-1)
+    m<-matrix(table(df[df[[strat_col]]==(s-1)]$dist,df[df[[strat_col]]==(s-1)][[pheno_col]])/nrow(df[df[[strat_col]]==(s-1)]),byrow=FALSE,nrow=2)
+    top<-m[2,2]/sum(m[2,])  #prevalence in top of distribution
+    bottom<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+    assign(df_name,cbind(data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")),"top_prev"=top,"bottom_prev"=bottom))
+    mobj[[df_name]]<-get(df_name)
+  }
+  
+  ## model using I(dist & stratum=1)
+  df$conditional<-2
+  df[df[[strat_col]]==1 & df$dist==1]$conditional<-1
+  df[df[[strat_col]]==1 & df$dist==0]$conditional<-0
+  df[df[[strat_col]]==0]$conditional<-0
+  df[df$conditional==2]$conditional<-NA
+  df$dist<-df$conditional #replace I(GRS dist) with I(GRS dist & stratum=1)
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  cdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist"))
+  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
+  cdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  cdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
+  mobj[["conditional"]]<-cdf
+  
+  
+  ##model using I(FHiGRS dist)
+  q<-quantile(df[[fhigrs_col]],value) #quantile in all data
+  #top of bottom of distribution as binary variable, bottom as reference group
+  df$fhigrs<-2
+  df$fhigrs<-ifelse(df[[fhigrs_col]]>q,1,0) #1 if in top, 0 in bottom
+  df[df$fhigrs==2]$dist<-NA
+  df$dist<-df$fhigrs #replace I(GRS dist) with I(FHiGRS dist)
+  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
+                            sep = ""))
+  glm.obj<-glm(formula=formula,data=df,family="binomial")
+  fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all
+  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
+  fdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
+  fdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
+  mobj[["FHIGRS"]]<-fdf
+  
+  class(mobj)<-"model_obj"
+  return(mobj)
 }
 
 
 ## screen N people how many do we catch and how many do we miss given screening strategy (prioritize by family history or no)
 #OR and 95% confidence intervals for 2 by 2 contingency tables of cases/control in top/bottom distribution for various scenarios 
-clinical_impact<-function(df,value,grs_col,fhigrs_col,strat_col,N=10000,qfirst=FALSE){
+clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=10000,qfirst=FALSE){
 
   ## inverse rank normalize standard GRS in the population because FHIGRS is inv normal scale
   df$invNormGRS<-rankNorm(df[[grs_col]])
@@ -312,6 +404,33 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,strat_col,N=10000,qfirst=F
   return(rbind(scenario1_df,scenario2_df,scenario3_df,scenario4_df))
 }
 
+#function to estimate FHiGRS 
+estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col){
+  len<-length(prev_df)
+  #put q-quantiles in order of prevalence 
+  #To do: prevalences from a reference population
+  prev_df_order<-prev_df[order(prev_df$prev),]
+  prev_df_order$rank<-seq(100,((len/2)-1)*200,100)
+  
+  #assign samples to groups
+  #copy subset dataframe so we don't alter original data during for loop over q-quantiles
+  main_df$rank<-as.numeric(1) #initialize column for FHiGRS
+  for (s in c(1,2)){
+    prev_df_order_strat<-prev_df_order[prev_df_order$stratum==(s-1),]
+    prev_df_order_strat[1,'lower_tile']<- -100 #condition to put samples equiv to minimum in bottom bin
+    for (j in 1:nrow(prev_df_order_strat)){
+      u<-prev_df_order_strat[j,'upper_tile']
+      l<-prev_df_order_strat[j,'lower_tile']
+      rank<-prev_df_order_strat[j,'rank']
+      main_df[main_df[[strat_col]]==(s-1) & main_df[[grs_col]]>l & main_df[[grs_col]]<=u,'rank']<-rank
+    }
+  }
+  main_df$grs_rank<-main_df[[grs_col]] + main_df$rank #add rank to GRS
+  main_df$FHIGRS<-qnorm((rank(main_df$grs_rank,na.last="keep")-0.5)/sum(!is.na(main_df$grs_rank))) #new FHIGRS
+  return(main_df)
+}
+  
+
 
 ###########################################################
 #################### MAIN #################################
@@ -328,9 +447,8 @@ print(dim(subset))
 
 ##stratify then calculate quantiles
 sobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=FALSE)
-print(sobj)
-
 #print(sobj)
+
 size<-length(sobj) #number of quantiles being tested, size of obj
 for (i in 1:size){ #across q-quantiles
   for (j in c(1,2)){ #across stratum
@@ -373,6 +491,11 @@ for (i in 1:size){ #across q-quantiles
   qsub$grs_rank<-qsub[[grs_col]]+qsub$rank #add rank to GRS
   qsub$FHIGRS<-qnorm((rank(qsub$grs_rank,na.last="keep")-0.5)/sum(!is.na(qsub$grs_rank))) #new FHIGRS
   
+  fhigrs_col<-which(names(qsub)=="FHIGRS")
+
+  #qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
+  #print(head(qsub))
+  
   ### FHiGR dotplot
   qsub[[strat_col]]<-as.factor(qsub[[strat_col]])
   levels(qsub[[strat_col]])<-c("FH-","FH+")
@@ -412,39 +535,58 @@ for (i in 1:size){ #across q-quantiles
   fhigrs_col<-which(names(qsub)=="FHIGRS")
   qsub[[strat_col]]<-as.numeric(qsub[[strat_col]])-1 #turn strat back to value
   mobj<-model(df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar)
-  print(mobj)
-  rowname_list<-c("GRS","FHiGRS","GRS","FH") #select coefficient with this name from the model 
-  score_list<-c("GRS","FHiGRS","GRS+FH","FH") #secnario being tested 
+  rowname_list<-c("GRS","FHIGRS","GRS","FH") #select coefficient with this name from the model 
+  score_list<-c("GRS","FHiGRS","FHxGRS","FH") #secnario being tested 
   for (l in 1:length(mobj)){ #loop over list from model function
     if (i==1 & l==1){
     d<-data.frame(OR=exp(mobj[[l]][rowname_list[l],'Estimate']),
                   LB=exp(mobj[[l]][rowname_list[l],'Estimate']-1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                   UB=exp(mobj[[l]][rowname_list[l],'Estimate']+1.96*mobj[[l]][rowname_list[l],'Std..Error']),
-                  pval=mobj[[l]][score_list[l],'Pr...z..'],
+                  pval=mobj[[l]][rowname_list[l],'Pr...z..'],
                   score=score_list[l],
                   qtile=quantiles[i])
     } else {
       d<-rbind(d,data.frame(OR=exp(mobj[[l]][rowname_list[l],'Estimate']),
                             LB=exp(mobj[[l]][rowname_list[l],'Estimate']-1.96*mobj[[l]][rowname_list[l],'Std..Error']),
                             UB=exp(mobj[[l]][rowname_list[l],'Estimate']+1.96*mobj[[l]][rowname_list[l],'Std..Error']),
-                            pval=mobj[[l]][score_list[l],'Pr...z..'],
+                            pval=mobj[[l]][rowname_list[l],'Pr...z..'],
                             score=score_list[l],
                             qtile=quantiles[i]))
-      
     }
   }
   
-  
-  #To do: do for every qtile, put at end  of main loop here
   ## compare GRS, FHIGRS, GRS+FH, and FH with 2 by 2 contingency tables, also clinical impact and false negatives/positives/accuracy 
   logical_list<-c(TRUE,FALSE)
   label_list<-c("quantileFirst","stratifyFirst")
   for (qlogic in c(1,2)){ #over 2 logic options for creating quantiles 
-    obj<-lapply(cutpts,clinical_impact,df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
+    #2 by 2 tables
+    obj<-lapply(cutpts,clinical_impact,df=qsub,pheno_col=pheno_col,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
     if (qlogic==1 & i==1) {
       clin_df<-data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i])
     } else {
       clin_df<-rbind(clin_df,data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i]))
+    }
+  }
+  
+  ## compare I(distribution of GRS and FHIGRS) with logistic regression and covariates
+  for (qlogic in c(1,2)){ #over 2 logic options for creating quantiles 
+    mobj<-lapply(cutpts,model_indicator,df=qsub,covar=covar,pheno_col=pheno_col,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
+    for (l in 1:length(mobj)){ #loop over list from model function, one per cutpt value
+      name_list<-names(mobj[[l]])
+      for (n in 1:length(name_list)){ #across the models tested 
+        colnames<-lapply(mobj[[l]][name_list[n]],names)[[1]] #pull column names from data frame
+        z<-data.frame(mobj[[l]][name_list[n]])['dist',] #pull out summ stats for variable of interest
+        names(z)<-colnames
+        OR=exp(z[['Estimate']])
+        LB=exp(z[['Estimate']]-1.96*z[['Std..Error']])
+        UB=exp(z[['Estimate']]+1.96*z[['Std..Error']])
+        pval=z[['Pr...z..']]
+        if (qlogic==1 & n==1 & i==1 & l==1) { #inititalize df for first q-quantile, first cutpoint, first quantile logic
+         model_df<-cbind(z,qtile=quantiles[i],cutpt=cutpts[l],qfirst=label_list[qlogic],name=name_list[n],OR=OR,LB=LB,UB=UB,pval=pval)
+        } else {
+          model_df<-rbind(model_df,cbind(z,qtile=quantiles[i],cutpt=cutpts[l],qfirst=label_list[qlogic],name=name_list[n],OR=OR,LB=LB,UB=UB,pval=pval))
+        }
+      }
     }
   }
   
@@ -467,22 +609,42 @@ for (i in 1:size){ #across q-quantiles
  
 }
 
+#write table comparing logistic regression with indicator variable for top/bottom distribution across # of bins to divide data for FHIGRS
+file_n<-paste(sep=".",out," modelIndicator.compareScores.txt")
+write.table(format(model_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+##plot comparison
+by(model_df, model_df$qtile,
+   function(x){
+     name=unique(x$qtile)
+     pdf_fn<-paste(sep=".",out,name,"modelIndicator.compareScores.pdf")
+     pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+     print(ggplot(x,aes(x=cutpt,y=OR,color=name)) + facet_wrap(~qfirst) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) +
+             labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","goldenrod3","darkblue","orchid4","seagreen4"),name="") +
+             geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
+     dev.off()
+   })
+
+
 #write table comparing scores from logistic regression across # of bins to divide data for FHIGRS
-file_n<-paste(sep=".",out," model.compareScores.txt")
+file_n<-paste(sep=".",out," modelContinuous.compareScores.txt")
 write.table(format(d,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
 ##plot comparison
-pdf_fn<-paste(sep=".",out,"model.compareScores.pdf")
-pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-print(ggplot(d,aes(x=qtile,y=OR,color=score)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=d$LB,ymax=d$UB)) + scale_x_continuous(breaks=quantiles) + 
+by(d, d$qtile,
+   function(x){
+    name=unique(x$qtile)
+    pdf_fn<-paste(sep=".",out,name,"modelContinuous.compareScores.pdf")
+    pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+    print(ggplot(x,aes(x=qtile,y=OR,color=score)) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) + scale_x_continuous(breaks=quantiles) + 
         labs(title=main,x="Number of Quantiles in which Prevalence is Estimated",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
         geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
-dev.off()
+    dev.off()
+    })
 
 
-#write table comparing scores from 2 by 2 contingency tables across # of bins to divide data for FHIGRS
+#write table comparing scores from 2 by 2 contingency tables for top/bottom distribution across # of bins to divide data for FHIGRS
 file_n<-paste(sep=".",out,"table.compareScores.txt")
 write.table(format(clin_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
-levels(clin_df$scenario)<-c("GRS","FHiGRS","GRS+FH","FH")
+clin_df$scenario<-factor(clin_df$scenario,levels(clin_df$scenario)[c(2,1,3,4)])
 #plot comparison 
 by(clin_df, clin_df$qtile,
    function(x){
@@ -490,7 +652,7 @@ by(clin_df, clin_df$qtile,
       pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
       pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
       print(ggplot(x,aes(x=cutpt,y=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) +
-        labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="",alpha=0.5) +
+        labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
         geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
     dev.off()
 })
