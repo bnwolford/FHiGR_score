@@ -404,16 +404,15 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   return(rbind(scenario1_df,scenario2_df,scenario3_df,scenario4_df))
 }
 
-#function to estimate FHiGRS 
+##function to estimate FHiGRS
+#takes data frame created from prev_per_quantile_stratum object
 estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col){
-  len<-length(prev_df)
-  #put q-quantiles in order of prevalence 
-  #To do: prevalences from a reference population
+  ##put q-quantiles in order of prevalence
+  ##to do: use prevalence from reference population
   prev_df_order<-prev_df[order(prev_df$prev),]
-  prev_df_order$rank<-seq(100,((len/2)-1)*200,100)
+  prev_df_order$rank<-seq(100,nrow(prev_df)*100,100) #make rankings in scale of 100
   
-  #assign samples to groups
-  #copy subset dataframe so we don't alter original data during for loop over q-quantiles
+  ##assign samples to groups
   main_df$rank<-as.numeric(1) #initialize column for FHiGRS
   for (s in c(1,2)){
     prev_df_order_strat<-prev_df_order[prev_df_order$stratum==(s-1),]
@@ -429,6 +428,7 @@ estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col){
   main_df$FHIGRS<-qnorm((rank(main_df$grs_rank,na.last="keep")-0.5)/sum(!is.na(main_df$grs_rank))) #new FHIGRS
   return(main_df)
 }
+
   
 
 
@@ -473,67 +473,13 @@ for (i in 1:size){ #across q-quantiles
   #To do: prevalences from a reference population
   sdf_order<-sdf[order(sdf$prev),]
   sdf_order$rank<-seq(100,(list_length-1)*200,100)
-
-  #assign samples to groups
-  #copy subset dataframe so we don't alter original data during for loop over q-quantiles
-  qsub<-subset
-  qsub$rank<-as.numeric(1) #initialize 
-  for (s in c(1,2)){
-    sdf_order_strat<-sdf_order[sdf_order$stratum==(s-1),]
-    sdf_order_strat[1,'lower_tile']<- -100 #condition to put samples equiv to minimum in bottom bin
-    for (j in 1:nrow(sdf_order_strat)){
-      u<-sdf_order_strat[j,'upper_tile']
-      l<-sdf_order_strat[j,'lower_tile']
-      rank<-sdf_order_strat[j,'rank']
-      qsub[qsub[[strat_col]]==(s-1) & qsub[[grs_col]]>l & qsub[[grs_col]]<=u,'rank']<-rank
-    }
-  }
-  qsub$grs_rank<-qsub[[grs_col]]+qsub$rank #add rank to GRS
-  qsub$FHIGRS<-qnorm((rank(qsub$grs_rank,na.last="keep")-0.5)/sum(!is.na(qsub$grs_rank))) #new FHIGRS
   
-  fhigrs_col<-which(names(qsub)=="FHIGRS")
-
-  #qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
-  #print(head(qsub))
-  
-  ### FHiGR dotplot
-  qsub[[strat_col]]<-as.factor(qsub[[strat_col]])
-  levels(qsub[[strat_col]])<-c("FH-","FH+")
-  stratum<-names(qsub)[[strat_col]]
-  pdf_fn<-paste(sep=".",out,quantiles[i],"FHiGRS.pdf")
-  png_fn<-paste(sep=".",out,quantiles[i],"FHiGRS.png")
-  ##make pdf
-  pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) + 
-    scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-    theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
-  dev.off()
-  ##make png
-  png(file=png_fn,height=1000,width=1200,res=200)
-  print(ggplot(qsub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) + 
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
-  dev.off()
-  
-  ### GRS dotplot
-  pdf_fn<-paste(sep=".",out,quantiles[i],"GRS.pdf")
-  png_fn<-paste(sep=".",out,quantiles[i],"GRS.png")
-  qsub$invNormGRS<-rankNorm(qsub[[grs_col]])
-  pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) + 
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
-  dev.off()
-  ##make png
-  png(file=png_fn,height=1250,width=1500,res=200)
-  print(ggplot(qsub,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/25,dotsize=0.5) + 
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) + labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
-  dev.off()
+  #estimate FHiGRS
+  qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
   
   ## compare GRS and FHIGRS with logistic regression and covariates
   fhigrs_col<-which(names(qsub)=="FHIGRS")
-  qsub[[strat_col]]<-as.numeric(qsub[[strat_col]])-1 #turn strat back to value
+  print(head(qsub))
   mobj<-model(df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar)
   rowname_list<-c("GRS","FHIGRS","GRS","FH") #select coefficient with this name from the model 
   score_list<-c("GRS","FHiGRS","FHxGRS","FH") #secnario being tested 
