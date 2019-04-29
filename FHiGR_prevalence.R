@@ -28,8 +28,8 @@ optionList <- list(
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="",help="Plot title [default='']"),
-  make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='']"),
-  make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='']"),
+  make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
+  make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
   make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]")
 )
@@ -176,6 +176,8 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
     }
 
     if (stratum==TRUE){ #stratify
+        dat$stratum<-as.factor(dat$stratum)
+        levels(dat$stratum)<-c("Negative","Positive") #change labels from 0/1
         by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
            function (x) {
                name=unique(x$q)
@@ -357,6 +359,8 @@ for (q in 1:length(quantiles)){
         fobj_df$ub<-fobj_df$prev+(1.96*fobj_df$se)
         fobj_df$lb<-fobj_df$prev-(1.96*fobj_df$se)
         ymax<-max(fobj_df$prev) #this may need to be changed
+        fobj$stratum<-as.factor(fobj$stratum)
+        levels(fobj$stratum)<-c("Negative","Positive")
         if (unique(fobj_df$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=fobj_df$frac}
         pdf(file=paste(sep=".",out,"FHiGRS",label_list[i],name,"pdf"),height=5,width=5,useDingbats=FALSE)
         print(ggplot(fobj_df,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
@@ -393,7 +397,6 @@ subset$invNormGRS<-rankNorm(subset[[grs_col]])
 subset[[strat_col]]<-as.factor(subset[[strat_col]])
 levels(subset[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
 stratum<-names(subset)[[strat_col]]
-print(stratum)
 ##make pdf
 pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
 print(ggplot(subset,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) +
@@ -407,7 +410,7 @@ print(ggplot(subset,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  
       scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
       theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
       labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
-  dev.off()
+dev.off()
 
 
 ##To do: fix size of dotplots, weird function of binwidth 
