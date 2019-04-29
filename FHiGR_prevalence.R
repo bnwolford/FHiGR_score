@@ -70,7 +70,7 @@ legend<-arguments$options$legend
 dig<-arguments$option$digits
 header<-arguments$options$header
 ##source relevant code from code base
-#source(paste0(options$codeDir,"FHiGRS.R")) ##will be used to calculate FHiGRS
+#source(paste0(arguments$options$codeDir,"FHiGRS.R")) ##will be used to calculate FHiGRS
 
 
 
