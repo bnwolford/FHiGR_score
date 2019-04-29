@@ -12,7 +12,7 @@ print(Sys.time())
 print(sessionInfo())
 library(optparse)
 library(data.table)
-library(ROCR)
+library(ROCR) #ROC package
 library(dplyr)
 library(ggplot2)
 
@@ -24,12 +24,14 @@ optionList <- list(
   make_option(c("-f","--file"),type="character",help="File with sample IDs, phenotypes, self reported family history, and GRS. Expeects header. White space delimited."),
   make_option(c("-s","--stratum_col"),type="numeric",help="1-based column with stratum (e.g. family history). Must be on binary scale 1/0 with 1 being affirmative. NAs ok."),
   make_option(c("-p","--pheno_col"),type="numeric",help="1-based column with phenotype (e.g. disease status). Must be on binary scale 1/0 with 1 being case. NAs ok."),
+  make_option(c("-q","--quantile"),type="numeric",help="Number of quantiles for calculating FHiGRS [default=20]",default=20),
   make_option(c("-g","--grs_col"),type="numeric",help="1-based column with GRS, not inverse normalized."),
   make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
-  make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']")
+  make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']"),
+  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]")
 )
 
 parser <- OptionParser(
@@ -62,11 +64,13 @@ if (length(grs_col)==0){
 }
 out<-arguments$options$output
 main<-arguments$options$maintitle
-xlabel<-arguments$options$xlabel
-ylabel<-arguments$options$ylabel
 dig<-arguments$option$digits
 invNorm<-arguments$options$invNorm
 header<-arguments$options$header
+quantile<-arguments$options$quantile
+##source relevant code from code base
+source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to calculate FHiGRS
+
 
 ###########################################################
 #################### FUNTIONS #############################
@@ -117,8 +121,19 @@ ROC_pair<-function(obj){
     tpr<-sensitivity
     fpr<-1-specificity
     accuracy<-(m[1,1] + m[2,2])/sum(m)
-    ##data.frame(false__pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy)
+    ##data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy)
     return(data.frame(fpr,tpr))
+}
+
+## make ROC curve and calculate AUC given a dataframe with predictions and labels
+ROCR_package<-function(d){
+    p<-prediction(d$pred,d$label) #ROCR prediction object
+    roc.perf=performance(p,measure="tpr",x.measure="fpr")
+    acc.perf=performance(p,measure="acc")
+    #plot(acc.perf)
+    auc.perf=performance(p,measure="auc")
+    data<-data.frame(x=unlist(roc.perf@x.values),y=unlist(roc.perf@y.values),auc=unlist(auc.perf@y.values))
+    return(data)
 }
 
 ###########################################################
@@ -145,9 +160,38 @@ pred_obj<-lapply(cutpts,make_pred_obj,df=subset,pheno_col=pheno_col,grs_col=grs_
 pairs<-lapply(pred_obj,ROC_pair)
 roc_df<-bind_rows(pairs)
 roc_df$cutpts<-cutpts
-roc_df$method<-"standard"
+roc_df$method<-"GRS"
 
 all<-roc_df
+
+##estimate FHiGRS (functions from helperFunctions.R)
+sobj<-prev_per_quantile_stratum(qtile=quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=FALSE)
+for (j in c(1,2)){ #across stratum
+    list_length<-length(sobj$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
+    prev<-sobj$prev[j,][-list_length]
+    se<-sobj$se[j,][-list_length]
+    n<-sobj$n[j,][-list_length]
+    tiles<-sobj$tiles[-1]
+    lower_tile<-sobj$tiles[1:list_length-1]
+    upper_tile<-sobj$tiles[2:list_length]
+    percents<-names(tiles)
+    bins<-rep(quantile,list_length-1)
+    strat<-rep(j-1,list_length-1)
+    if (j==1) {
+        sdf<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,lower_tile=lower_tile,upper_tile=upper_tile,row.names=NULL)
+    } else {
+        sdf<-rbind(sdf,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,lower_tile=lower_tile,upper_tile=upper_tile,row.names=NULL))
+    }
+}
+qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
+fhigrs_col<-which(names(qsub)=="FHIGRS")
+## make cut in FHiGRS distribution
+fpred_obj<-lapply(cutpts,make_pred_obj,df=qsub,pheno_col=pheno_col,grs_col=fhigrs_col)
+pairs<-lapply(fpred_obj,ROC_pair)
+roc_df<-bind_rows(pairs)
+roc_df$cutpts<-cutpts
+roc_df$method<-"FHiGRS"
+fhigrs<-roc_df
 
 ## make cut in F=1 
 logical_list<-c("TRUE","FALSE")
@@ -156,19 +200,41 @@ for (l in c(1,2)){ #do for each division logic
   roc_df<-NULL
   pred_obj<-lapply(cutpts, make_pred_obj_strat,df=subset,pheno_col,grs_col=grs_col,strat_col=strat_col,qfirst=logical_list[l])
   pairs<-lapply(pred_obj,ROC_pair)
-  roc_df<-rbind(roc_df,cbind(bind_rows(pairs),cutpts,method="FHiGRS"))
-  roc_df<-rbind(all,roc_df)
-  
+  roc_df<-rbind(roc_df,cbind(bind_rows(pairs),cutpts,method="GRS|FH=1"))
+  roc_df<-rbind(all,roc_df) #ROC for all GRS
+  roc_df<-rbind(fhigrs,roc_df) #ROC for FHiGRS
+  #plot
   pdf_fn<-paste(sep=".",out,label_list[l],"ROC.pdf")
-  pdf(file=pdf_fn,height=4,width=6)
-  print(ggplot(roc_df,aes(x=fpr,y=tpr,color=method)) + theme_bw() + geom_point() +
-    coord_cartesian(xlim=c(0,1),ylim=c(0,1)) + scale_color_manual(values=c("grey","darkblue")) + 
-    labs(title=main,xlab="False Positive Rate",ylab="True Positive Rate"))
+  pdf(file=pdf_fn,height=4,width=5,useDingbats=FALSE)
+  print(ggplot(roc_df,aes(x=fpr,y=tpr,color=method)) + theme_bw() + geom_point(alpha=0.8) +
+        coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
+        scale_color_manual(values=c("seagreen4","darkblue","grey")) +
+        labs(title=main,x="False Positive Rate",y="True Positive Rate") +
+        geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
   dev.off()
   
 }
                   
 
 
+##### ROCR curve and AUC
+fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
+names(fhigrs_df)<-c("pred","label")
+grs_df<-data.frame(pred=subset[[grs_col]],label=subset[[pheno_col]])
+names(grs_df)<-c("pred","label")
 
-
+grs_roc<-ROCR_package(grs_df)
+fhigrs_roc<-ROCR_package(fhigrs_df)
+grs_roc$method<-"GRS"
+fhigrs_roc$method<-"FHiGRS"
+roc_df<-rbind(grs_roc,fhigrs_roc)
+print(roc_df)
+#plot
+pdf_fn<-paste(sep=".",out,"ROC.pdf")
+pdf(file=pdf_fn,height=4,width=5,useDingbats=FALSE)
+print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() + geom_point(alpha=0.8) +
+      coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
+      scale_color_manual(values=c("grey","darkblue")) +
+      labs(title=main,x="False Positive Rate",y="True Positive Rate") +
+      geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
+dev.off()
