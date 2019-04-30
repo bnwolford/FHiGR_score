@@ -70,7 +70,7 @@ legend<-arguments$options$legend
 dig<-arguments$option$digits
 header<-arguments$options$header
 ##source relevant code from code base
-#source(paste0(arguments$options$codeDir,"FHiGRS.R")) ##will be used to calculate FHiGRS
+source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to calculate FHiGRS
 
 
 
@@ -208,32 +208,6 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
 }
 
 
-##function to estimate FHiGRS          
-#takes data frame created from prev_per_quantile_stratum object
-estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col){
-    ##put q-quantiles in order of prevalence
-    ##to do: use prevalence from reference population
-    prev_df_order<-prev_df[order(prev_df$prev),]
-    prev_df_order$rank<-seq(100,nrow(prev_df)*100,100) #make rankings in scale of 100
-
-    ##assign samples to groups
-    main_df$rank<-as.numeric(1) #initialize column for FHiGRS
-    for (s in c(1,2)){
-        prev_df_order_strat<-prev_df_order[prev_df_order$stratum==(s-1),]
-        prev_df_order_strat[1,'lower_tile']<- -100 #condition to put samples equiv to minimum in bottom bin
-        for (j in 1:nrow(prev_df_order_strat)){
-            u<-prev_df_order_strat[j,'upper_tile']
-            l<-prev_df_order_strat[j,'lower_tile']
-            rank<-prev_df_order_strat[j,'rank']
-            main_df[main_df[[strat_col]]==(s-1) & main_df[[grs_col]]>l & main_df[[grs_col]]<=u,'rank']<-rank
-        }
-    }
-    main_df$grs_rank<-main_df[[grs_col]] + main_df$rank #add rank to GRS
-    main_df$FHIGRS<-qnorm((rank(main_df$grs_rank,na.last="keep")-0.5)/sum(!is.na(main_df$grs_rank))) #new FHIGRS
-    return(main_df)
-}
-
-
 ###########################################################
 #################### MAIN #################################
 ###########################################################
@@ -359,13 +333,15 @@ for (q in 1:length(quantiles)){
         fobj_df$ub<-fobj_df$prev+(1.96*fobj_df$se)
         fobj_df$lb<-fobj_df$prev-(1.96*fobj_df$se)
         ymax<-max(fobj_df$prev) #this may need to be changed
-        fobj$stratum<-as.factor(fobj$stratum)
-        levels(fobj$stratum)<-c("Negative","Positive")
+        fobj_df$stratum<-as.factor(fobj_df$stratum)
+        levels(fobj_df$stratum)<-c("Negative","Positive")
         if (unique(fobj_df$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=fobj_df$frac}
         pdf(file=paste(sep=".",out,"FHiGRS",label_list[i],name,"pdf"),height=5,width=5,useDingbats=FALSE)
-        print(ggplot(fobj_df,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
-              scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +labs(title=main) + xlab("FHiGR Score") + ylab(ylabel)  +
-              scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
+        print(ggplot(fobj_df,aes(x=frac,y=prev,color=stratum)) + geom_point() + theme_bw() +
+            geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
+            scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+            labs(title=main) + xlab("FHiGR Score") + ylab(ylabel)  +
+            scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
         dev.off()
     }
     ##make dot plot 
@@ -376,14 +352,16 @@ for (q in 1:length(quantiles)){
     png_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.png")
     ##make pdf
     pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
+    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+          geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
           labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
     dev.off()
     ##make png
     png(file=png_fn,height=1000,width=1200,res=200)
-    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
+    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+          geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
           labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
