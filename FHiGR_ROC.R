@@ -28,6 +28,7 @@ optionList <- list(
   make_option(c("-g","--grs_col"),type="numeric",help="1-based column with GRS, not inverse normalized."),
   make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
+  make_option(c("-v","--covariates"),type="character",default="",help="Comma separated list of 1-based column incides for model covariates"),
   make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']"),
@@ -66,6 +67,7 @@ out<-arguments$options$output
 main<-arguments$options$maintitle
 dig<-arguments$option$digits
 invNorm<-arguments$options$invNorm
+covar<-as.numeric(strsplit(arguments$options$covariates,",")[[1]])
 header<-arguments$options$header
 quantile<-arguments$options$quantile
 ##source relevant code from code base
@@ -216,30 +218,52 @@ for (l in c(1,2)){ #do for each division logic
 }
                   
 
+##additive model predicted values 
+formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                          paste(colnames(df)[c(strat_col,grs_col)],collapse="*"),
+                          sep = ""))
+glm.obj<-glm(formula=formula,data=df,family="binomial")
+add_fitted<-fitted(glm.obj)
 
-##### ROCR curve and AUC, use functions from ROCR package using the user defined function ROCR_package
+##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH without covariates
+##use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
-names(fhigrs_df)<-c("pred","label")
 grs_df<-data.frame(pred=subset[[grs_col]],label=subset[[pheno_col]])
-names(grs_df)<-c("pred","label")
+add_df<-data.frame(pred=add_fitted,label=subset[[pheno_col]])
 
 grs_roc<-ROCR_package(grs_df)
 fhigrs_roc<-ROCR_package(fhigrs_df)
+add_roc<-ROCR_package(add_df)
+
 grs_roc$method<-"GRS"
 fhigrs_roc$method<-"FHiGRS"
-roc_df<-rbind(grs_roc,fhigrs_roc)
+add_roc$method<-"GRS+FH"
+roc_df<-rbind(grs_roc,fhigrs_roc,add_roc)
 
 grs_auc<-unique(roc_df[roc_df$method=="GRS",]$auc)
 fhigrs_auc<-unique(roc_df[roc_df$method=="FHiGRS",]$auc)
+add_auc<-unique(roc_df[roc_df$method=="GRS+FH",]$auc)
 
 #plot
 pdf_fn<-paste(sep=".",out,"ROC.pdf")
 pdf(file=pdf_fn,height=4,width=5,useDingbats=FALSE)
 print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
-      scale_color_manual(values=c("darkblue","grey"),name="Score") +
+      scale_color_manual(values=c("darkblue","grey","seagreen4"),name="Score") +
       labs(title=main,x="False Positive Rate",y="True Positive Rate") +
       annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) + 
-      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="darkblue",size=2) + 
+      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="darkblue",size=2) +
+      annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
+
+
+####### models with covariates
+
+##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH with covariates
+
+##additive
+formula<-as.formula(paste(colnames(df)[pheno_col], "~",
+                          paste(colnames(df)[c(covar)], collapse = "+"), "+" ,
+                          paste(colnames(df)[c(strat_col,grs_col)],collapse="*"),
+                          sep = ""))
