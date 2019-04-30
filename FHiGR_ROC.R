@@ -226,6 +226,7 @@ glm.obj<-glm(formula=formula,data=df,family="binomial")
 add_fitted<-fitted(glm.obj)
 
 ##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH without covariates
+
 ##use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
 grs_df<-data.frame(pred=subset[[grs_col]],label=subset[[pheno_col]])
@@ -235,11 +236,13 @@ grs_roc<-ROCR_package(grs_df)
 fhigrs_roc<-ROCR_package(fhigrs_df)
 add_roc<-ROCR_package(add_df)
 
+##label models
 grs_roc$method<-"GRS"
 fhigrs_roc$method<-"FHiGRS"
 add_roc$method<-"GRS+FH"
 roc_df<-rbind(grs_roc,fhigrs_roc,add_roc)
 
+##pull out AUC
 grs_auc<-unique(roc_df[roc_df$method=="GRS",]$auc)
 fhigrs_auc<-unique(roc_df[roc_df$method=="FHiGRS",]$auc)
 add_auc<-unique(roc_df[roc_df$method=="GRS+FH",]$auc)
@@ -257,8 +260,6 @@ print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
 
-
-####### models with covariates
 
 ##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH with covariates
 
