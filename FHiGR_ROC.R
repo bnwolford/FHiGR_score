@@ -217,7 +217,7 @@ for (l in c(1,2)){ #do for each division logic
                   
 
 
-##### ROCR curve and AUC
+##### ROCR curve and AUC, use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
 names(fhigrs_df)<-c("pred","label")
 grs_df<-data.frame(pred=subset[[grs_col]],label=subset[[pheno_col]])
@@ -228,13 +228,18 @@ fhigrs_roc<-ROCR_package(fhigrs_df)
 grs_roc$method<-"GRS"
 fhigrs_roc$method<-"FHiGRS"
 roc_df<-rbind(grs_roc,fhigrs_roc)
-print(roc_df)
+
+grs_auc<-unique(roc_df[roc_df$method=="GRS",]$auc)
+fhigrs_auc<-unique(roc_df[roc_df$method=="FHiGRS",]$auc)
+
 #plot
 pdf_fn<-paste(sep=".",out,"ROC.pdf")
 pdf(file=pdf_fn,height=4,width=5,useDingbats=FALSE)
-print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() + geom_point(alpha=0.8) +
+print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
-      scale_color_manual(values=c("grey","darkblue")) +
+      scale_color_manual(values=c("darkblue","grey"),name="Score") +
       labs(title=main,x="False Positive Rate",y="True Positive Rate") +
+      annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) + 
+      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="darkblue",size=2) + 
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
