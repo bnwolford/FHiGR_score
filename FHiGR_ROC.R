@@ -15,6 +15,7 @@ library(data.table)
 library(ROCR) #ROC package
 library(dplyr)
 library(ggplot2)
+library(RNOmni)
 
 ###########################################################
 ################### Read Command Line Parameters ##########
@@ -29,7 +30,6 @@ optionList <- list(
   make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-v","--covariates"),type="character",default="",help="Comma separated list of 1-based column incides for model covariates"),
-  make_option(c("-i","--invNorm"),type="logical",default=FALSE,help="Inverse normalize GRS for entire population [default=FALSE]"),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="ROC",help="Plot title [default='']"),
   make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]")
@@ -148,13 +148,6 @@ df<-fread(file,header=header)
 
 subset<-df[!is.na(df[[strat_col]])] #remove if NA for stratum
 print(dim(subset))
-#ggplot(subset, aes_string(x=names(subset)[grs_col])) + geom_density()
-
-if (invNorm==TRUE){
-  ## inverse rank normalize GRS in thepopulation
-  subset$invNormGRS<-rankNorm(subset[[grs_col]])
-  grs_col<-which(names(subset)=="invNormGRS") #new GRS col
-}
 
 ## make cut in entire distribution
 cutpts<-(1:99)/100
@@ -163,7 +156,6 @@ pairs<-lapply(pred_obj,ROC_pair)
 roc_df<-bind_rows(pairs)
 roc_df$cutpts<-cutpts
 roc_df$method<-"GRS"
-
 all<-roc_df
 
 ##estimate FHiGRS (functions from helperFunctions.R)
@@ -187,6 +179,11 @@ for (j in c(1,2)){ #across stratum
 }
 qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
 fhigrs_col<-which(names(qsub)=="FHIGRS")
+
+## inverse normalize GRS
+qsub$invNormGRS<-rankNorm(qsub[[grs_col]])
+grs_col<-which(names(qsub)=="invNormGRS")
+
 ## make cut in FHiGRS distribution
 fpred_obj<-lapply(cutpts,make_pred_obj,df=qsub,pheno_col=pheno_col,grs_col=fhigrs_col)
 pairs<-lapply(fpred_obj,ROC_pair)
@@ -195,12 +192,12 @@ roc_df$cutpts<-cutpts
 roc_df$method<-"FHiGRS"
 fhigrs<-roc_df
 
-## make cut in F=1 
+## make cut in F=1 stratum
 logical_list<-c("TRUE","FALSE")
 label_list<-c("quantileFirst","stratifyFirst")
 for (l in c(1,2)){ #do for each division logic
   roc_df<-NULL
-  pred_obj<-lapply(cutpts, make_pred_obj_strat,df=subset,pheno_col,grs_col=grs_col,strat_col=strat_col,qfirst=logical_list[l])
+  pred_obj<-lapply(cutpts, make_pred_obj_strat,df=qsub,pheno_col,grs_col=grs_col,strat_col=strat_col,qfirst=logical_list[l])
   pairs<-lapply(pred_obj,ROC_pair)
   roc_df<-rbind(roc_df,cbind(bind_rows(pairs),cutpts,method="GRS|FH=1"))
   roc_df<-rbind(all,roc_df) #ROC for all GRS
@@ -218,19 +215,19 @@ for (l in c(1,2)){ #do for each division logic
 }
                   
 
-##additive model predicted values 
-formula<-as.formula(paste(colnames(df)[pheno_col], "~",
-                          paste(colnames(df)[c(strat_col,grs_col)],collapse="*"),
-                          sep = ""))
-glm.obj<-glm(formula=formula,data=df,family="binomial")
-add_fitted<-fitted(glm.obj)
-
 ##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH without covariates
+
+##additive model predicted values 
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(strat_col,grs_col)],collapse="*"),
+                          sep = ""))
+glm.obj<-glm(formula=formula,data=qsub,family="binomial")
+add_fitted<-fitted(glm.obj)
 
 ##use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
-grs_df<-data.frame(pred=subset[[grs_col]],label=subset[[pheno_col]])
-add_df<-data.frame(pred=add_fitted,label=subset[[pheno_col]])
+grs_df<-data.frame(pred=qsub[[grs_col]],label=qsub[[pheno_col]])
+add_df<-data.frame(pred=add_fitted,label=qsub[[pheno_col]])
 
 grs_roc<-ROCR_package(grs_df)
 fhigrs_roc<-ROCR_package(fhigrs_df)
@@ -249,7 +246,7 @@ add_auc<-unique(roc_df[roc_df$method=="GRS+FH",]$auc)
 
 #plot
 pdf_fn<-paste(sep=".",out,"ROC.pdf")
-pdf(file=pdf_fn,height=4,width=5,useDingbats=FALSE)
+pdf(file=pdf_fn,height=3,width=4,useDingbats=FALSE)
 print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
       scale_color_manual(values=c("darkblue","grey","seagreen4"),name="Score") +
@@ -263,8 +260,103 @@ dev.off()
 
 ##### ROCR curve and AUC for GRS, FHIGRS, GRS+FH with covariates
 
-##additive
-formula<-as.formula(paste(colnames(df)[pheno_col], "~",
-                          paste(colnames(df)[c(covar)], collapse = "+"), "+" ,
-                          paste(colnames(df)[c(strat_col,grs_col)],collapse="*"),
+## model for GRS
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(covar,grs_col)], collapse = "+"),
                           sep = ""))
+grs<-glm(formula=formula,data=qsub,family="binomial")
+grs_fitted<-fitted(grs)
+
+## model for FHIGRS
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(covar,fhigrs_col)], collapse = "+"),
+                          sep = ""))
+fhigrs<-glm(formula=formula,data=qsub,family="binomial")
+fhigrs_fitted<-fitted(fhigrs)
+
+## model for family history + GRS with interaction term
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(covar)], collapse = "+"), "+" ,
+                          paste(colnames(qsub)[c(strat_col,grs_col)],collapse="*"),
+                          sep = ""))
+int<-glm(formula=formula,data=qsub,family="binomial")
+int_fitted<-fitted(int)
+
+## model for additive GRS + family history without interaction term
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(covar,strat_col,grs_col)], collapse = "+"),
+                          sep = ""))
+add<-glm(formula=formula,data=qsub,family="binomial")
+add_fitted<-fitted(add)
+
+## model for family history
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(covar,strat_col)], collapse = "+"),
+                          sep = ""))
+fh<-glm(formula=formula,data=qsub,family="binomial")
+fh_fitted<-fitted(fh)
+
+## intercept only model
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~","1"))
+null<-glm(formula=formula,data=qsub,family="binomial")
+null_fitted<-fitted(null)
+
+## reduced model
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[covar],collapse="+"),
+                          sep=""))
+red<-glm(formula=formula,data=qsub,family="binomial")
+red_fitted<-fitted(red)
+
+
+##use functions from ROCR package using the user defined function ROCR_package
+fhigrs_df<-data.frame(pred=fhigrs_fitted,label=qsub[[pheno_col]])
+grs_df<-data.frame(pred=grs_fitted,label=qsub[[pheno_col]])
+add_df<-data.frame(pred=add_fitted,label=qsub[[pheno_col]])
+int_df<-data.frame(pred=int_fitted,label=qsub[[pheno_col]])
+fh_df<-data.frame(pred=fh_fitted,label=qsub[[pheno_col]])
+null_df<-data.frame(pred=null_fitted,label=qsub[[pheno_col]])
+red_df<-data.frame(pred=red_fitted,label=qsub[[pheno_col]])
+                       
+grs_roc<-ROCR_package(grs_df)
+fhigrs_roc<-ROCR_package(fhigrs_df)
+add_roc<-ROCR_package(add_df)
+int_roc<-ROCR_package(int_df)
+fh_roc<-ROCR_package(fh_df)
+null_roc<-ROCR_package(null_df)
+red_roc<-ROCR_package(red_df)
+
+##label models
+grs_roc$method<-"GRS"
+fhigrs_roc$method<-"FHiGRS"
+add_roc$method<-"GRS+FH"
+int_roc$method<-"GRS*FH"
+fh_roc$method<-"FH"
+null_roc$method<-"null"
+red_roc$method<-"reduced"
+roc_df<-rbind(grs_roc,fhigrs_roc,add_roc,int_roc,fh_roc,null_roc,red_roc)
+
+##pull out AUC
+grs_auc<-unique(roc_df[roc_df$method=="GRS",]$auc)
+fhigrs_auc<-unique(roc_df[roc_df$method=="FHiGRS",]$auc)
+add_auc<-unique(roc_df[roc_df$method=="GRS+FH",]$auc)
+int_auc<-unique(roc_df[roc_df$method=="GRS*FH",]$auc)
+fh_auc<-unique(roc_df[roc_df$method=="FH",]$auc)
+null_auc<-unique(roc_df[roc_df$method="null",]$auc)
+red_auc<-unique(roc_df[roc_df$method=="reduced",]$auc)
+
+
+##plot
+pdf_fn<-paste(sep=".",out,"withcovar_ROC.pdf")
+pdf(file=pdf_fn,height=3,width=4,useDingbats=FALSE)
+print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
+      coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
+      labs(title=main,x="False Positive Rate",y="True Positive Rate") +
+      annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) +
+      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="darkblue",size=2) +
+      annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
+      annotate("text",x=0.8,y=0.15,label=paste0("GRS*FH AUC",format(int_auc,digits=dig,format="f")),color="purple",size=2) +
+      annotate("text",x=0.8,y=0.2,label=paste0("Covariates AUC",format(red_auc,digits=dig,format="f")),color="red",size=2) +
+      annotate("text",x=0.8,y=0.25,label=paste0("FH AUC",format(fh_auc,digits=dig,format="f")),color=
+      geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
+dev.off()
