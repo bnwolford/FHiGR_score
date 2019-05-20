@@ -303,7 +303,7 @@ null_fitted<-fitted(null)
 
 ## reduced model
 formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
-                          paste(colnames(qsub)[covar],collapse="+"),
+                          paste(colnames(qsub)[c(covar)],collapse="+"),
                           sep=""))
 red<-glm(formula=formula,data=qsub,family="binomial")
 red_fitted<-fitted(red)
@@ -342,7 +342,7 @@ fhigrs_auc<-unique(roc_df[roc_df$method=="FHiGRS",]$auc)
 add_auc<-unique(roc_df[roc_df$method=="GRS+FH",]$auc)
 int_auc<-unique(roc_df[roc_df$method=="GRS*FH",]$auc)
 fh_auc<-unique(roc_df[roc_df$method=="FH",]$auc)
-null_auc<-unique(roc_df[roc_df$method="null",]$auc)
+null_auc<-unique(roc_df[roc_df$method=="null",]$auc)
 red_auc<-unique(roc_df[roc_df$method=="reduced",]$auc)
 
 
@@ -357,6 +357,7 @@ print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
       annotate("text",x=0.8,y=0.15,label=paste0("GRS*FH AUC",format(int_auc,digits=dig,format="f")),color="purple",size=2) +
       annotate("text",x=0.8,y=0.2,label=paste0("Covariates AUC",format(red_auc,digits=dig,format="f")),color="red",size=2) +
-      annotate("text",x=0.8,y=0.25,label=paste0("FH AUC",format(fh_auc,digits=dig,format="f")),color=
+      annotate("text",x=0.8,y=0.25,label=paste0("FH AUC",format(fh_auc,digits=dig,format="f")),color="goldenrod3",size=2) +
+      annotate("text",x=0.8,y=0.3,label=paste0("Null AUC", format(null_auc, digits=dig,format="f")),color="black",size=2) +
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
