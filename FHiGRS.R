@@ -647,10 +647,9 @@ by(clin_df, clin_df$qtile,
       name=unique(x$qtile)
       pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
       pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-      fh=
       print(ggplot(x,aes(x=cutpt,y=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) +
         labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
-        geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7) + geom_hline(color="seangreen4",yintercept=fh))
+        geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
     dev.off()
 })
 
