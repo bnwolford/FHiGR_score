@@ -552,7 +552,7 @@ for (i in 1:size){ #across q-quantiles
     mobj[[l]]$OR<-exp(mobj[[l]][,'Estimate'])
     mobj[[l]]$LB<-exp(mobj[[l]][,'Estimate']-mobj[[l]][,'Std..Error'])
     mobj[[l]]$UB<-exp(mobj[[l]][,'Estimate']+mobj[[l]][,'Std..Error'])
-    mobj[[l]]$model<-score_list[l]
+    mobj[[l]]$model<-model_list[l]
     mobj[[l]]$pred<-row.names(mobj[[l]])
   }
   d<-do.call("rbind",mobj)
