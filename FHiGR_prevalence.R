@@ -31,7 +31,7 @@ optionList <- list(
   make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
-  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]")
+  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGR_score/]")
 )
 
 parser <- OptionParser(
@@ -390,5 +390,22 @@ print(ggplot(subset,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  
       labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
 dev.off()
 
+###### Wilcoxon Rank Sum Test ###########
+grs_pos<-subset[subset[[strat_col]]=="Positive"][[grs_col]]
+grs_neg<-subset[subset[[strat_col]]=="Negative"][[grs_col]]
+print("GRS")
+print(var(grs_pos))
+print(var(grs_neg))
+print(wilcox.test(grs_pos,grs_neg)$p.value)
+print(wilcox.test(grs_pos,grs_neg)$statistic)
+#grs same as inverse normalized grs 
 
+#do this ttste but it will be very biased
+fhigrs_pos<-fdf[fdf[[strat_col]]=="Positive"]$FHIGRS
+fhigrs_neg<-fdf[fdf[[strat_col]]=="Negative"]$FHIGRS
+print("FHiGRS")
+print(var(fhigrs_pos))
+print(var(fhigrs_neg))
+print(wilcox.test(fhigrs_pos,fhigrs_neg)$p.value)
+print(wilcox.test(fhigrs_pos,fhigrs_neg)$statistic)
 ##To do: fix size of dotplots, weird function of binwidth 
