@@ -11,6 +11,7 @@ library(gridExtra)
 library(RNOmni)
 library(optparse)
 library(ResourceSelection)
+library(plyr)
 
 print(Sys.time())
 print(sessionInfo())
@@ -597,7 +598,7 @@ for (i in 1:size){ #across q-quantiles
       }
     }
   }
-  levels(model_df$name)<-c("GRS","FamilyHistory-","FamilyHistory+","ConditionalFamilyHistory+","FHiGRS","FamilyHistory")
+  model_df$name<-revalue(model_df$name, c("stratum0"="FamilyHistory-", "stratum1"="FamilyHistory+","conditional"="ConditionalFamilyHistory+","family"="FamilyHistory"))
   model_df_sub<-model_df[model_df$name!="ConditionalFamilyHistory+",] # remove conditional family history since its a smaller group of people and not equal comparison
   
   #plot of false positives and false negatives in stratified versus regular screening schemes, convert decimal cutpoints to whole numbers
