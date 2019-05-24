@@ -502,8 +502,6 @@ estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col){
 }
 
   
-
-
 ###########################################################
 #################### MAIN #################################
 ###########################################################
@@ -563,6 +561,7 @@ for (i in 1:size){ #across q-quantiles
   dsub<-d[d$pred %in% c("FHIGRS","GRS","FH","FH*GRS"),]
   dsub$model<-as.factor(dsub$model)
   dsub$model<-factor(dsub$model,levels=c("GRS", "family", "additive","FHiGRS","interaction"))
+  dsub$model<-revalue(dsub$model,c("family"="FamilyHistory"))
   
   ## compare GRS, FHIGRS, GRS+FH, and FH with 2 by 2 contingency tables, also clinical impact and false negatives/positives/accuracy 
   logical_list<-c(TRUE,FALSE)
@@ -636,6 +635,21 @@ by(model_df_sub,model_df_sub$qtile,
      dev.off()
    })
 
+#write table comparing scores from logistic regression across # of bins to divide data for FHIGRS
+file_n<-paste(sep=".",out," modelContinuous.compareScores.txt")
+write.table(format(d,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+##plot comparison
+by(dsub, dsub$qtile,
+   function(x){
+     name=unique(x$qtile)
+     pdf_fn<-paste(sep=".",out,name,"modelContinuous.compareScores.pdf")
+     pdf(file=pdf_fn,height=6,width=4,useDingbats=FALSE)
+     print(ggplot(x,aes(x=OR,y=as.factor(pred),color=model)) + facet_wrap(~model,ncol=1,scales="free_y") + geom_point() + theme_bw() + geom_errorbarh(aes(xmin=x$LB,xmax=x$UB)) + 
+             labs(title=main,y="Number of Quantiles in which Prevalence is Estimated",x="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","goldenrod3","orchid4","seagreen4"),name="") +
+             geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7))
+     dev.off()
+   })
+
 
 #write table comparing scores from 2 by 2 contingency tables for top/bottom distribution across # of bins to divide data for FHIGRS
 file_n<-paste(sep=".",out,"table.compareScores.txt")
@@ -647,9 +661,12 @@ by(clin_df, clin_df$qtile,
       name=unique(x$qtile)
       pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
       pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-      print(ggplot(x,aes(x=cutpt,y=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$LB,ymax=x$UB)) +
-        labs(title=main,x="Threshold for High Risk Group",y="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
-        geom_hline(linetype="dashed",color="black",yintercept=1,alpha=0.7))
+      print(ggplot(x[x$scenario!="FH" & x$scenario!="GRS+FH",],aes(y=as.factor(cutpt),x=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() +
+            geom_errorbarh(aes(xmin=x[x$scenario!="FH" & x$scenario!="GRS+FH",]$LB,xmax=x[x$scenario!="FH" & x$scenario!="GRS+FH",]$UB)) +
+        labs(title=main,y="Threshold for High Risk Group",x="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
+          geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7) +
+          geom_vline(color="red",xintercept=x[x$name=="FH",]$OR)
+      )
     dev.off()
 })
 
