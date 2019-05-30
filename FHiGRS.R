@@ -392,7 +392,7 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   ############ by age and sex
   age_sex_score<-data.frame()
   subset_list<-c()
-  print(sex)
+
   for (s in unique(df[[sex]])) {
     yr<-quantile(df[[birthYear]],0.5)
     assign(paste0("young",s),df[df[[sex]]==s & df[[birthYear]] < yr,])
