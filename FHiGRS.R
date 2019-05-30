@@ -436,8 +436,8 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   
   pdf_fn<-paste(sep=".",out,value,"divisions.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-  ggplot(age_sex_score,aes(x=OR,y=cutpt,color=scenario)) + facet_wrap(~division) + theme_bw() + geom_point() +
-    geom_errorbarh(aes(xmin=LB,xmax=UB))
+  print(ggplot(age_sex_score,aes(x=OR,y=cutpt,color=scenario)) + facet_wrap(~division) + theme_bw() + geom_point() +
+    geom_errorbarh(aes(xmin=LB,xmax=UB)))
   dev.off()
   
   ## scenario 1 FHiGRS
@@ -467,6 +467,7 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   SE<-sqrt(sum(1/m)) #log odds scale
   LB<-exp(log(OR)-1.96*SE)
   UB<-exp(log(OR)+1.96*SE)
+  
   scenario2_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy,  OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="GRS",cutpt=value)
   
   #scenario 3 GRS stratified by FH
@@ -607,7 +608,8 @@ for (i in 1:size){ #across q-quantiles
   #plot distribution of FHiGRS with age and sex 
   pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_sex_distribution.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-  ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + scale_fill_manual(values=c("blue","red"),name="Sex")
+  print(ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
+    scale_fill_manual(values=c("blue","red"),name="Sex"))
   dev.off()
   #to do: generalized wilcox 
   
@@ -617,7 +619,7 @@ for (i in 1:size){ #across q-quantiles
   row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
   pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_correlation.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-  corrplot(mydata.rcorr$r,type="lower")
+  print(corrplot(mydata.rcorr$r,type="lower"))
   dev.off()
   
   ## compare GRS and FHIGRS with logistic regression and covariates
