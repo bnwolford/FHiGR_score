@@ -40,8 +40,8 @@ optionList <- list(
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
   make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]"),
-  make_option("--sex",type="numeric",help="1-based colummn with sex"),
-  make_option("--birthYear",type="numeric",help="1-based column with birthyear")
+  make_option("--sex",type="numeric",help="1-based colummn with sex",default=0),
+  make_option("--birthYear",type="numeric",help="1-based column with birthyear",default=0)
 )
 
 parser <- OptionParser(
@@ -71,6 +71,7 @@ grs_col<-arguments$options$grs_col
 if (length(grs_col)==0){
   warning("GRS col is required -gc or --grs_col")
 }
+
 quantiles<-as.numeric(strsplit(arguments$options$quantiles,",")[[1]])
 cutpts<-as.numeric(strsplit(arguments$options$cut_points,",")[[1]])
 out<-arguments$options$output
@@ -84,6 +85,9 @@ invNorm<-arguments$options$invNorm
 header<-arguments$options$header
 sex<-arguments$options$sex
 birthYear<-arguments$options$birthYear
+if (sex | birthYear ==0){
+  warning("Sex and birthyear are required")
+}
 ##source relevant code from code base
 #source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to calculate FHiGRS
 #TO do: get helper functions working and pare this script down
@@ -347,7 +351,7 @@ model_indicator<-function(df,value,fhigrs_col,grs_col,strat_col,pheno_col,covar,
 
 ## screen N people how many do we catch and how many do we miss given screening strategy (prioritize by family history or no)
 #OR and 95% confidence intervals for 2 by 2 contingency tables of cases/control in top/bottom distribution for various scenarios 
-clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=10000,qfirst=FALSE){
+clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=10000,qfirst=FALSE,sex,birthYear){
 
   ## inverse rank normalize standard GRS in the population because FHIGRS is inv normal scale
   df$invNormGRS<-rankNorm(df[[grs_col]])
@@ -385,10 +389,10 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   #FHIGRS relative to GRS
   false_pos<-(scenario1-scenario2)[2,1]
   false_neg<-(scenario1-scenario2)[1,2]
-  
   ############ by age and sex
   age_sex_score<-data.frame()
   subset_list<-c()
+  print(sex)
   for (s in unique(df[[sex]])) {
     yr<-quantile(df[[birthYear]],0.5)
     assign(paste0("young",s),df[df[[sex]]==s & df[[birthYear]] < yr,])
@@ -629,7 +633,7 @@ for (i in 1:size){ #across q-quantiles
   }
   d<-do.call("rbind",mobj)
   d$qtile=quantiles[i]
-  
+
   #pull out important covariate/model combinations
   dsub<-d[d$pred %in% c("FHIGRS","GRS","FH","FH*GRS"),]
   dsub$model<-as.factor(dsub$model)
@@ -641,20 +645,20 @@ for (i in 1:size){ #across q-quantiles
   } else {
       cmodel<-rbind(cmodel,dsub)
   }
-  
+
   ## compare GRS, FHIGRS, GRS+FH, and FH with 2 by 2 contingency tables, also clinical impact and false negatives/positives/accuracy 
   logical_list<-c(TRUE,FALSE)
   label_list<-c("quantileFirst","stratifyFirst")
   for (qlogic in c(1,2)){ #over 2 logic options for creating quantiles 
     #2 by 2 tables
-    obj<-lapply(cutpts,clinical_impact,df=qsub,pheno_col=pheno_col,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
+    obj<-lapply(cutpts,clinical_impact,df=qsub,pheno_col=pheno_col,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic],sex=sex,birthYear=birthYear)
     if (qlogic==1 & i==1) {
       clin_df<-data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i])
     } else {
       clin_df<-rbind(clin_df,data.frame(bind_rows(obj),qfirst=label_list[qlogic],qtile=quantiles[i]))
     }
   }
-  
+
   ## compare I(distribution of GRS and FHIGRS) with logistic regression and covariates
   for (qlogic in c(1,2)){ #over 2 logic options for creating quantiles 
     mobj<-lapply(cutpts,model_indicator,df=qsub,covar=covar,pheno_col=pheno_col,grs_col=grs_col,fhigrs_col=fhigrs_col,strat_col=strat_col,qfirst=logical_list[qlogic])
