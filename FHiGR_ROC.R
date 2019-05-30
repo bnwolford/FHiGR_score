@@ -332,7 +332,7 @@ fhigrs_roc$method<-"FHiGRS"
 add_roc$method<-"GRS+FH"
 int_roc$method<-"GRS*FH"
 fh_roc$method<-"FH"
-null_roc$method<-"null"
+#null_roc$method<-"null"
 red_roc$method<-"reduced"
 #roc_df<-rbind(grs_roc,fhigrs_roc,add_roc,int_roc,fh_roc,null_roc,red_roc)
 #roc_df<-rbind(grs_roc,fhigrs_roc,add_roc,int_roc,fh_roc,red_roc)
@@ -370,9 +370,9 @@ pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
 print(ggplot(roc_df,aes(x=x,y=y,color=as.factor(method))) + theme_bw() +geom_line() +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) + labs(title=main,x="False Positive Rate",y="True Positive Rate") +
       scale_color_manual(values=c("goldenrod3","darkblue","darkgrey","seagreen4")) + 
-      annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs <- auc,digits=dig,format="f")),color="darkgrey",size=2) +
-      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs <- auc,digits=dig,format="f")),color="darkblue",size=2) +
-      annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add <- auc,digits=dig,format="f")),color="seagreen4",size=2) +
-      annotate("text",x=0.8,y=0.25,label=paste0("FH AUC ",format(fh <- auc,digits=dig,format="f")),color="goldenrod3",size=2) +
-      geom <- abline(slope=1,intercept=0,linetype="dashed",color="black"))
+      annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) +
+      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="darkblue",size=2) +
+      annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
+      annotate("text",x=0.8,y=0.25,label=paste0("FH AUC ",format(fh_auc,digits=dig,format="f")),color="goldenrod3",size=2) +
+      geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
