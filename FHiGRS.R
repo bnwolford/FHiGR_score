@@ -608,7 +608,7 @@ for (i in 1:size){ #across q-quantiles
   #to do: generalized wilcox 
   
   #correlation matrix between covariates
-  var_list<-c(covariates,fhigrs_col,grs_col)
+  var_list<-c(covar,fhigrs_col,grs_col)
   mydata.rcorr<-qsub %>% select(var_list) %>% as.matrix() %>% rcorr()
   row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
   col.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
