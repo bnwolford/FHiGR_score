@@ -12,6 +12,8 @@ library(gridExtra)
 library(RNOmni)
 library(optparse)
 library(ResourceSelection)
+library(Hmisc)
+library(corrplot)
 
 
 print(Sys.time())
@@ -37,7 +39,9 @@ optionList <- list(
   make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
-  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]")
+  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGRS_score/]"),
+  make_option("--sex",type="numeric",help="1-based colummn with sex"),
+  make_option("--birthYear",type="numeric",help="1-based column with birthyear")
 )
 
 parser <- OptionParser(
@@ -78,6 +82,8 @@ dig<-arguments$option$digits
 covar<-as.numeric(strsplit(arguments$options$covariates,",")[[1]])
 invNorm<-arguments$options$invNorm
 header<-arguments$options$header
+sex<-arguments$options$sex
+birthYear<-arguments$options$birthYear
 ##source relevant code from code base
 #source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to calculate FHiGRS
 #TO do: get helper functions working and pare this script down
@@ -347,8 +353,8 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   df$invNormGRS<-rankNorm(df[[grs_col]])
   grs_col<-which(names(df)=="invNormGRS") #new GRS col
   counts<-list(rep(NA,2))
-  score_list<-c(fhigrs_col,grs_col)
-  for (k in c(1,2)){
+  score_list<-c(fhigrs_col,grs_col) 
+  for (k in c(1,2)){ #loop across 2 scores
     q<-quantile(df[[score_list[k]]],value) #take quantile in score of interest
     df$dist<-2
     df$dist<-ifelse(df[[score_list[k]]]>q,1,0) #1 if in top, 0 in bottom
@@ -379,6 +385,56 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   #FHIGRS relative to GRS
   false_pos<-(scenario1-scenario2)[2,1]
   false_neg<-(scenario1-scenario2)[1,2]
+  
+  ############ by age and sex
+  age_sex_score<-data.frame()
+  subset_list<-c()
+  for (s in unique(df[[sex]])) {
+    yr<-quantile(df[[birthYear]],0.5)
+    assign(paste0("young",s),df[df[[sex]]==s & df[[birthYear]] < yr,])
+    assign(paste0("old",s),df[df[[sex]]==s & df[[birthYear]] >= yr,])
+    subset_list<-c(subset_list,paste0("old",s),paste0("young",s))
+  }
+  for (l in 1:length(subset_list)) {
+    assign("df",get(subset_list[l]))
+    score_list<-c(fhigrs_col,grs_col) 
+    for (k in c(1,2)){ #loop across 2 scores
+      q<-quantile(df[[score_list[k]]],value) #take quantile in score of interest
+      df$dist<-2
+      df$dist<-ifelse(df[[score_list[k]]]>q,1,0) #1 if in top, 0 in bottom
+      df[df$dist==2]$dist<-NA
+      dist_col<-which(names(df)=="dist")
+      counts[[k]]<-as.matrix(table(df[[pheno_col]],df[[dist_col]])) #2 by 2 table of binary phenotype and binary top/bottom of distribution
+    }
+    #FHIGRS
+    screen<-c(counts[[1]][2,1],counts[[1]][2,2]) #control,case of top distribution
+    no_screen<-c(sum(counts[[1]][1,1],counts[[1]][,1]),sum(counts[[1]][1,2],counts[[1]][,2])) #control,case of bottom distribution
+    m<-matrix(c(no_screen,screen),nrow=2,ncol=2,byrow=TRUE)
+    m_frac<-m/sum(m)
+    OR<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
+    SE<-sqrt(sum(1/m)) #log odds scale
+    LB<-exp(log(OR)-1.96*SE)
+    UB<-exp(log(OR)+1.96*SE)
+    age_sex_score<-rbind(age_sex_score,data.frame(OR=OR,SE=SE, UB=UB, LB=LB,scenario="FHiGRS",cutpt=value,division=subset_list[l]))
+    
+    #GRS
+    screen<-c(counts[[2]][2,1],counts[[2]][2,2]) #control,case of top distribution
+    no_screen<-c(sum(counts[[2]][1,1],counts[[2]][,1]),sum(counts[[2]][1,2],counts[[2]][,2])) #control,case of bottom distribution
+    grsm<-matrix(c(no_screen,screen),nrow=2,ncol=2,byrow=TRUE)
+    grsm_frac<-grsm/sum(grsm)
+    m<-grsm
+    OR<-(m[2,2]/m[2,1])/(m[1,2]/m[1,1])  #case/control top distribution over case/control bottom distribution
+    SE<-sqrt(sum(1/m)) #log odds scale
+    LB<-exp(log(OR)-1.96*SE)
+    UB<-exp(log(OR)+1.96*SE)
+    age_sex_score<-rbind(age_sex_score,data.frame(OR=OR,SE=SE, UB=UB, LB=LB,scenario="GRS",cutpt=value,division=subset_list[l]))
+  }
+  
+  pdf_fn<-paste(sep=".",out,value,"divisions.pdf")
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+  ggplot(age_sex_score,aes(x=OR,y=cutpt,color=scenario)) + facet_wrap(~division) + theme_bw() + geom_point() +
+    geom_errorbarh(aes(xmin=LB,xmax=UB))
+  dev.off()
   
   ## scenario 1 FHiGRS
   neg_predictive<-m[1,1]/sum(m[1,])
@@ -544,6 +600,23 @@ for (i in 1:size){ #across q-quantiles
   qsub<-estimate_FHiGRS(sdf,subset,strat_col,grs_col)
   fhigrs_col<-which(names(qsub)=="FHIGRS")
   
+  #plot distribution of FHiGRS with age and sex 
+  pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_sex_distribution.pdf")
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+  ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + scale_fill_manual(values=c("blue","red"),name="Sex")
+  dev.off()
+  #to do: generalized wilcox 
+  
+  #correlation matrix between covariates
+  var_list<-c(covariates,fhigrs_col,grs_col)
+  mydata.rcorr<-qsub %>% select(var_list) %>% as.matrix() %>% rcorr()
+  row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
+  col.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
+  pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_correlation.pdf")
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+  corrplot(mydata.rcorr$r,type="lower")
+  dev.off()
+  
   ## compare GRS and FHIGRS with logistic regression and covariates
   mobj<-model(df=qsub,grs_col=grs_col,fhigrs_col=fhigrs_col,pheno_col=pheno_col,strat_col=strat_col,covar=covar,out=paste(sep=".",out,quantiles[i]))
   model_list<-c("GRS","FHiGRS","interaction","additive","family") #model being tested 
@@ -563,7 +636,7 @@ for (i in 1:size){ #across q-quantiles
   dsub$model<-as.factor(dsub$model)
   dsub$model<-factor(dsub$model,levels=c("GRS", "family", "additive","FHiGRS","interaction"))
   dsub$model<-revalue(dsub$model,c("family"="FamilyHistory"))
-
+  #keep growing data frame across quantiles for write.table later
   if (i==1) {
       cmodel<-dsub    
   } else {
