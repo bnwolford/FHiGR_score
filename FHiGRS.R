@@ -3,6 +3,7 @@
 ###########################################################
 ###################### Libraries ##########################
 ###########################################################
+library(plyr)
 library(dplyr)
 library(ggplot2)
 library(data.table)
@@ -11,7 +12,7 @@ library(gridExtra)
 library(RNOmni)
 library(optparse)
 library(ResourceSelection)
-library(plyr)
+
 
 print(Sys.time())
 print(sessionInfo())
@@ -449,10 +450,10 @@ clinical_impact<-function(df,value,grs_col,fhigrs_col,pheno_col,strat_col,N=1000
   false_pos<-(scenario3-scenario2)[2,1]
   false_neg<-(scenario3-scenario2)[1,2]
   
-  scenario3_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy, OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="GRS+FH",cutpt=value)
+  scenario3_df <- data.frame(false_pos,false_neg, pos_predictive, neg_predictive, sensitivity, specificity, accuracy, OR=OR,SE=SE, UB=UB, LB=LB, top_prev, bottom_prev, scenario="GRS|FH",cutpt=value)
   
   #scenario 4 just family history
-  m<-table(df[[strat_col]],df[[pheno_col]])
+    m<-table(df[[strat_col]],df[[pheno_col]])
   neg_predictive<-m[1,1]/sum(m[1,])
   pos_predictive<-m[2,2]/sum(m[2,])
   specificity<-m[1,1]/sum(m[,1])
@@ -562,6 +563,12 @@ for (i in 1:size){ #across q-quantiles
   dsub$model<-as.factor(dsub$model)
   dsub$model<-factor(dsub$model,levels=c("GRS", "family", "additive","FHiGRS","interaction"))
   dsub$model<-revalue(dsub$model,c("family"="FamilyHistory"))
+
+  if (i==1) {
+      cmodel<-dsub    
+  } else {
+      cmodel<-rbind(cmodel,dsub)
+  }
   
   ## compare GRS, FHIGRS, GRS+FH, and FH with 2 by 2 contingency tables, also clinical impact and false negatives/positives/accuracy 
   logical_list<-c(TRUE,FALSE)
@@ -597,9 +604,7 @@ for (i in 1:size){ #across q-quantiles
       }
     }
   }
-  model_df$name<-revalue(model_df$name, c("stratum0"="FamilyHistory-", "stratum1"="FamilyHistory+","conditional"="ConditionalFamilyHistory+","family"="FamilyHistory"))
-  model_df_sub<-model_df[model_df$name!="ConditionalFamilyHistory+",] # remove conditional family history since its a smaller group of people and not equal comparison
-  
+
   #plot of false positives and false negatives in stratified versus regular screening schemes, convert decimal cutpoints to whole numbers
   pdf_fn<-paste(sep=".",out,"clinicalImpact.pdf")
   nudge_factor<- diff(range(clin_df$false_pos))/10 #if the x axis scale is kind of small we don't need to nudge labels too far from points
@@ -619,6 +624,11 @@ for (i in 1:size){ #across q-quantiles
  
 }
 
+####### Write tables and make plots (plots have fewer things visualized than exist in the tables)
+
+
+model_df$name<-revalue(model_df$name, c("stratum0"="FamilyHistory-", "stratum1"="FamilyHistory+","conditional"="ConditionalFamilyHistory+","family"="FamilyHistory","FHIGRS"="FHiGRS"))
+model_df_sub<-model_df[model_df$name=="GRS" | model_df$name=="FHiGRS" | model_df$name=="FamilyHistory",] # remove conditional family history since its a smaller group of people and not equal comparison
 #write table comparing logistic regression with indicator variable for top/bottom distribution across # of bins to divide data for FHIGRS
 file_n<-paste(sep=".",out," modelIndicator.compareScores.txt")
 write.table(format(model_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
@@ -629,24 +639,26 @@ by(model_df_sub,model_df_sub$qtile,
      pdf_fn<-paste(sep=".",out,name,"modelIndicator.compareScores.pdf")
      pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
      print(ggplot(x[x$name!="FamilyHistory",],aes(x=OR,y=as.factor(cutpt),color=name))  + geom_point() + theme_bw() + facet_wrap(~qfirst) + 
-             geom_errorbarh(aes(xmin=x[x$name!="FamilyHistory",]$LB, xmax=x[x$name!="FamilyHistory",]$UB, height=0.1)) +
-             labs(title=main,y="Threshold for High Risk Group",x="Odds Ratio between High Risk & Reference Group") + scale_color_manual(values=c("grey","goldenrod3","darkblue","orchid4","seagreen4"),name="") +
+             geom_errorbarh(aes(xmin=x[x$name!="FamilyHistory",]$LB, xmax=x[x$name!="FamilyHistory",]$UB)) +
+             labs(title=paste(main,"Model with covariates and high risk threshold"),y="Threshold for High Risk Group",x="Odds Ratio between High Risk & Reference Group") + scale_color_manual(values=c("grey","orchid4"),name="") +
              geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7) + geom_vline(color="red",xintercept=x[x$name=="FamilyHistory",]$OR,alpha=0.2))
      dev.off()
    })
 
 #write table comparing scores from logistic regression across # of bins to divide data for FHIGRS
 file_n<-paste(sep=".",out," modelContinuous.compareScores.txt")
-write.table(format(d,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+write.table(format(cmodel,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
+print(head(cmodel))
 ##plot comparison
-by(dsub, dsub$qtile,
+by(cmodel, cmodel$qtile,
    function(x){
      name=unique(x$qtile)
      pdf_fn<-paste(sep=".",out,name,"modelContinuous.compareScores.pdf")
-     pdf(file=pdf_fn,height=6,width=4,useDingbats=FALSE)
+     pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
      print(ggplot(x,aes(x=OR,y=as.factor(pred),color=model)) + facet_wrap(~model,ncol=1,scales="free_y") + geom_point() + theme_bw() + geom_errorbarh(aes(xmin=x$LB,xmax=x$UB)) + 
-             labs(title=main,y="Number of Quantiles in which Prevalence is Estimated",x="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","goldenrod3","orchid4","seagreen4"),name="") +
-             geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7))
+           labs(title=paste(main,"Model with covariates and continuous variables"),y="Predictor from model",x="Odds Ratio") +
+           scale_color_manual(values=c("grey","darkblue","goldenrod3","orchid4","seagreen4"),name="") +
+           geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7))
      dev.off()
    })
 
@@ -655,18 +667,19 @@ by(dsub, dsub$qtile,
 file_n<-paste(sep=".",out,"table.compareScores.txt")
 write.table(format(clin_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
 clin_df$scenario<-factor(clin_df$scenario,levels(clin_df$scenario)[c(2,1,3,4)])
+print(head(clin_df))
 #plot comparison 
 by(clin_df, clin_df$qtile,
    function(x){
-      name=unique(x$qtile)
-      pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
-      pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-      print(ggplot(x[x$scenario!="FH" & x$scenario!="GRS+FH",],aes(y=as.factor(cutpt),x=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() +
-            geom_errorbarh(aes(xmin=x[x$scenario!="FH" & x$scenario!="GRS+FH",]$LB,xmax=x[x$scenario!="FH" & x$scenario!="GRS+FH",]$UB)) +
-        labs(title=main,y="Threshold for High Risk Group",x="Odds Ratio") + scale_color_manual(values=c("grey","darkblue","orchid4","seagreen4"),name="") +
-          geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7) +
-          geom_vline(color="red",xintercept=x[x$name=="FH",]$OR)
-      )
+       name=unique(x$qtile)
+       pdf_fn<-paste(sep=".",out,name,"table.compareScores.pdf")
+       pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+       print(ggplot(x[x$scenario!="FH" & x$scenario!="GRS|FH",],aes(y=as.factor(cutpt),x=OR,color=scenario)) + facet_wrap(~qfirst) + geom_point() + theme_bw() +
+             geom_errorbarh(aes(xmin=x[x$scenario!="FH" & x$scenario!="GRS|FH",]$LB,xmax=x[x$scenario!="FH" & x$scenario!="GRS|FH",]$UB)) +
+             labs(title=paste(main, "Reduced model with high risk threshold"),y="Threshold for High Risk Group",x="Odds Ratio between High Risk & Reference Group") + scale_color_manual(values=c("grey","orchid4"),name="") +
+             geom_vline(linetype="dashed",color="black",xintercept=1,alpha=0.7) +
+             geom_vline(color="red",xintercept=x[x$scenario=="FH",]$OR,alpha=0.2)
+             )
     dev.off()
 })
 
