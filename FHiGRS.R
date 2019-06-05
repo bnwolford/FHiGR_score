@@ -613,10 +613,17 @@ for (i in 1:size){ #across q-quantiles
   dev.off()
   #to do: generalized wilcox 
   
+  #plot distribution of GRS with age and sex 
+  pdf_fn<-paste(sep=".",out,quantiles[i],"GRS_sex_distribution.pdf")
+  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
+  print(ggplot(qsub,aes(x=get(names(qsub)[grs_col]),fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
+          scale_fill_manual(values=c("blue","red"),name="Sex"))
+  dev.off()
+  
   #correlation matrix between covariates
-  var_list<-c(covar,fhigrs_col,grs_col)
+  var_list<-c(covar,strat_col,fhigrs_col,grs_col)
   mydata.rcorr<-qsub %>% select(var_list) %>% as.matrix() %>% rcorr()
-  row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FHIGRS","GRS") #TO DO: generalize
+  row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FH","FHIGRS","GRS") #TO DO: generalize
   pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_correlation.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(corrplot(mydata.rcorr$r,type="lower"))
@@ -726,7 +733,7 @@ by(model_df_sub,model_df_sub$qtile,
 #write table comparing scores from logistic regression across # of bins to divide data for FHIGRS
 file_n<-paste(sep=".",out," modelContinuous.compareScores.txt")
 write.table(format(cmodel,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
-print(head(cmodel))
+
 ##plot comparison
 by(cmodel, cmodel$qtile,
    function(x){
@@ -745,7 +752,7 @@ by(cmodel, cmodel$qtile,
 file_n<-paste(sep=".",out,"table.compareScores.txt")
 write.table(format(clin_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
 clin_df$scenario<-factor(clin_df$scenario,levels(clin_df$scenario)[c(2,1,3,4)])
-print(head(clin_df))
+
 #plot comparison 
 by(clin_df, clin_df$qtile,
    function(x){
