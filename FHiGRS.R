@@ -623,7 +623,8 @@ for (i in 1:size){ #across q-quantiles
   #correlation matrix between covariates
   var_list<-c(covar,strat_col,fhigrs_col,grs_col)
   mydata.rcorr<-qsub %>% select(var_list) %>% as.matrix() %>% rcorr()
-  row.names(mydata.rcorr$r)<-c("sex","birthyear","PC1","PC2","PC3","PC4","FH","FHIGRS","GRS") #TO DO: generalize
+  row.names(mydata.rcorr$r)<-c("sex","birthyear","batch","PC1","PC2","PC3","PC4","FH","FHIGRS","GRS") #TO DO: generalize
+  names(mydata.rcorr$r)<-c("sex","birthyear","batch","PC1","PC2","PC3","PC4","FH","FHIGRS","GRS") #TO DO: generalize
   pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_correlation.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(corrplot(mydata.rcorr$r,type="lower"))
