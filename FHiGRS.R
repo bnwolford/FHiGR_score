@@ -609,7 +609,7 @@ for (i in 1:size){ #across q-quantiles
   pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_sex_distribution.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
-    scale_fill_manual(values=c("blue","red"),name="Sex"))
+    scale_fill_manual(values=c("blue","red"),name="Sex")) + labels(x="GRS")
   dev.off()
   #to do: generalized wilcox 
   
@@ -617,7 +617,7 @@ for (i in 1:size){ #across q-quantiles
   pdf_fn<-paste(sep=".",out,quantiles[i],"GRS_sex_distribution.pdf")
   pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
   print(ggplot(qsub,aes(x=get(names(qsub)[grs_col]),fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
-          scale_fill_manual(values=c("blue","red"),name="Sex"))
+          scale_fill_manual(values=c("blue","red"),name="Sex")) + labels(x="GRS")
   dev.off()
   
   #correlation matrix between covariates
