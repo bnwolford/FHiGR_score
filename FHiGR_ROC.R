@@ -260,11 +260,11 @@ pdf_fn<-paste(sep=".",out,"ROC.pdf")
 pdf(file=pdf_fn,height=3,width=4,useDingbats=FALSE)
 print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line(alpha=0.5) +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
-      scale_color_manual(values=c("darkblue","orchid4","grey","darkblue"),name="Score") +
+      scale_color_manual(values=c("seagreen4","orchid","grey","darkblue"),name="Score") +
       labs(title=main,x="False Positive Rate",y="True Positive Rate") +
       annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) + 
       annotate("text",x=0.8,y=0.05,label=paste0("FH AUC ",format(fh_auc,digits=dig,format="f")),color="darkblue",size=2) +
-      annotate("text",x=0.8,y=0.1,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="orchid4",size=2) +
+      annotate("text",x=0.8,y=0.1,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="orchid",size=2) +
       annotate("text",x=0.8,y=0.15,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
