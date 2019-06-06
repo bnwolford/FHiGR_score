@@ -253,7 +253,7 @@ pdf_fn<-paste(sep=".",out,"ROC.pdf")
 pdf(file=pdf_fn,height=3,width=4,useDingbats=FALSE)
 print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
-      scale_color_manual(values=c("darkblue","grey","seagreen4"),name="Score") +
+      scale_color_manual(values=c("orchid4","grey","seagreen4","darkblue"),name="Score") +
       labs(title=main,x="False Positive Rate",y="True Positive Rate") +
       annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) + 
       annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="orchid4",size=2) +
