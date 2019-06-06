@@ -223,13 +223,13 @@ formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
                           sep = ""))
 glm.obj<-glm(formula=formula,data=qsub,family="binomial")
 add_fitted<-fitted(glm.obj)
+print(summary(glm.obj))
 
 ##fh model predicted values
-formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
-                          paste(colnames(qsub)[c(strat_col)], collapse = "+"),
-                          sep = ""))
-fh<-glm(formula=formula,data=qsub,family="binomial")
-fh_fitted<-fitted(fh)
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",colnames(qsub)[c(strat_col)],sep=" "))
+fh.glm<-glm(formula=formula,data=qsub,family="binomial")
+fh_fitted<-fitted(fh.glm)
+print(summary(fh.glm))
 
 ##use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
