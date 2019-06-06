@@ -224,11 +224,18 @@ formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
 glm.obj<-glm(formula=formula,data=qsub,family="binomial")
 add_fitted<-fitted(glm.obj)
 
+##fh model predicted values
+formula<-as.formula(paste(colnames(qsub)[pheno_col], "~",
+                          paste(colnames(qsub)[c(strat_col)], collapse = "+"),
+                          sep = ""))
+fh<-glm(formula=formula,data=qsub,family="binomial")
+fh_fitted<-fitted(fh)
+
 ##use functions from ROCR package using the user defined function ROCR_package
 fhigrs_df<-data.frame(pred=qsub[[fhigrs_col]],label=qsub[[pheno_col]])
 grs_df<-data.frame(pred=qsub[[grs_col]],label=qsub[[pheno_col]])
 add_df<-data.frame(pred=add_fitted,label=qsub[[pheno_col]])
-fh_df<-data.frame(pred=qsub[[strat_col]],label=qsub[[pheno_col]])
+fh_df<-data.frame(pred=fh_fitted,label=qsub[[pheno_col]])
 
 grs_roc<-ROCR_package(grs_df)
 fhigrs_roc<-ROCR_package(fhigrs_df)
@@ -251,14 +258,14 @@ fh_auc<-unique(roc_df[roc_df$method=="FH",]$auc)
 #plot
 pdf_fn<-paste(sep=".",out,"ROC.pdf")
 pdf(file=pdf_fn,height=3,width=4,useDingbats=FALSE)
-print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line() +
+print(ggplot(roc_df,aes(x=x,y=y,color=method)) + theme_bw() +geom_line(alpha=0.5) +
       coord_cartesian(xlim=c(0,1),ylim=c(0,1)) +
-      scale_color_manual(values=c("orchid4","grey","seagreen4","darkblue"),name="Score") +
+      scale_color_manual(values=c("darkblue","orchid4","grey","darkblue"),name="Score") +
       labs(title=main,x="False Positive Rate",y="True Positive Rate") +
       annotate("text",x=0.8,y=0, label=paste0("GRS AUC  ",format(grs_auc,digits=dig,format="f")),color="darkgrey",size=2) + 
-      annotate("text",x=0.8,y=0.05,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="orchid4",size=2) +
-      annotate("text",x=0.8,y=0.1,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
-      annotate("text",x=0.8,y=0.1,label=paste0("FH AUC ",format(fh_auc,digits=dig,format="f")),color="darkblue",size=2) +
+      annotate("text",x=0.8,y=0.05,label=paste0("FH AUC ",format(fh_auc,digits=dig,format="f")),color="darkblue",size=2) +
+      annotate("text",x=0.8,y=0.1,label=paste0("FHiGRS AUC  ",format(fhigrs_auc,digits=dig,format="f")),color="orchid4",size=2) +
+      annotate("text",x=0.8,y=0.15,label=paste0("GRS + FH AUC ",format(add_auc,digits=dig,format="f")),color="seagreen4",size=2) +
       geom_abline(slope=1,intercept=0,linetype="dashed",color="black"))
 dev.off()
 
