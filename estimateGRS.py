@@ -37,7 +37,8 @@ from glob import glob
 #"EUR_p_lt_5e-8_r2_0.2_plink.clumped_scores_per_variant.txt"
 parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
 parser.add_argument('-s', '--score_file', default="scores_per_variant.txt")
-parser.add_argument('-t', '--test_dosages', nargs='*', default="/net/hunt/disk2/MGI_data_2/MGI_all_data_HPI-3498/Willer_HPI3498_HUM00094409_mgi_HRC.chr*.vcf.gz")
+parser.add_argument('-m', '--multi_vcf', nargs='*')
+parser.add_argument('-v', '--single_vcf')
 parser.add_argument('-i', '--id_file', default="/net/fantasia/home/sarahgra/Collaborator_projects/PRS_prediction_Cristen/MGI_sample_IDs")
 parser.add_argument('-o', '--output_file', default="polygenic_risk_score_results.txt")
 args=parser.parse_args()
@@ -83,8 +84,13 @@ with open(regions_output_name, 'w') as out:
 
 #Calculate dosages per individual
 #Make sure to check allele
-file_list = glob(args.test_dosages)
+## Handle multi or single VCF
+if args.multi_vcf is not None:
+    file_list = glob(args.multi_vcf)
+elif args.single_vcf is not None:
+    file_list = [args.single_vcf]
 
+    
 for file_x in file_list:
     print("Now reading in: %s" % file_x)
     f = Popen(['tabix', '-R', regions_output_name, file_x], stdout=PIPE)
