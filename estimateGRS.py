@@ -148,7 +148,8 @@ def main():
 
     ## Handle multi or single VCF
     if args.multi_vcf is not None:
-        file_list = glob(args.multi_vcf)
+#        file_list = glob(args.multi_vcf)
+        file_list=args.multi_vcf
     elif args.single_vcf is not None:
         file_list = [args.single_vcf]
 
@@ -165,7 +166,7 @@ def main():
         if f != '':
             variant_count+=1 #add to marker count
             #This will return the effect allele and effect for each line if variant is in the risk score and not a comment line, and then the dosage line
-            test_results = np.asarray([flatten((score_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_file_dict])
+            test_results = np.asarray([flatten((weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_file_dict])
             #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
             #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
 
