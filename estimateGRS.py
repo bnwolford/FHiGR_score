@@ -48,26 +48,58 @@ import sys
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
     parser.add_argument('-w', '--weight_file')
-    parser.add_argument("-r","--chrom_col",help="0-based column with chromosome in file",type=int)
-    parser.add_argument("-p","--pos_col",help="0-based column with end position of variant in file",type=int)
-    parser.add_argument("-d","--coord_col",help="0-based column with chromosome:position of variant in weight file", type=int,default=0)
-    parser.add_argument("-a","--ea_col",help="0-based column with effect allele",type=int,default=1)
-    parser.add_argument("-t","--weight_col",help="0-based column with weight",type=int,default=2)
+    parser.add_argument("-cc","--chrom_col",help="0-based column with chromosome in file",type=int)
+    parser.add_argument("-pc","--pos_col",help="0-based column with end position of variant in weight file",type=int)
+    parser.add_argument("-dc","--coord_col",help="0-based column with chromosome:position:ref:alt of variant in weight file", type=int)
+    parser.add_argument("-ec","--ea_col",help="0-based column with effect allele in weight file",type=int,default=1)
+    parser.add_argument("-rc","--ref_col",help="0-based column with reference allele in weight file",type=int)
+    parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
+    parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
+    parser.add_argument("-k","--chunk",help="Number of markers from weight file to run at a time",default=1000)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
-    parser.add_argument("-c","--chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
+    parser.add_argument("-c","--vcf_chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
     parser.add_argument('-i', '--id_file', default="/net/fantasia/home/sarahgra/Collaborator_projects/PRS_prediction_Cristen/MGI_sample_IDs")
-    parser.add_argument('-o', '--output_file', default="polygenic_risk_score_results.txt")
+    parser.add_argument('-o', '--output_prefix',type=str)
+    parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
+    parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
+    parser.add_argument("--tabix",help="bcftools path",type=str,default="/usr/local/bin/tabix")
     args=parser.parse_args()
+
+    ## catches people using X chromosome VCF but only if doing on a per chromosome basis
+    if str(args.vcf_chrom)=="X":
+        sys.exit("This script currently only handles autosomes\n")
+    
+    ## check if marker information is adequately provided
+    check_list=[]
+    coordinate_columns=[args.chrom_col,args.pos_col,args.ref_col,args.alt_col]
+    for f in coordinate_columns:
+        check_list.append(f==None)
+    if sum(check_list)==0 and args.coord_col is None:
+        sys.exit("Need columns for chr:pos:ref:alt or each of these pieces of information individually\n")
+    elif sum(check_list)!=4:
+        sys.exit("Need ALL four columns for chromosome, position, reference, alternate\n")
     print >> sys.stderr, "%s\n"  % args
+
     return args
-
-
 
 ###############################
 ######## FUNCTIONS  #########
 ###############################
+
+#open files
+def open_zip(f):
+    if ".gz" in f:
+        command=gzip.open(f,"rt")
+        print >> sys.stderrr, "Opening gzipped file %s\n" % f
+    elif f == "-":
+        command=sys.stdin()
+    else:
+        command=open(f,"rt")
+        print >> sys.stderr, "Opening file %s\n" % f
+    return command
+                            
 
 #flatten nested lists
 def flatten(l, ltypes=(list, tuple)):
@@ -86,27 +118,44 @@ def flatten(l, ltypes=(list, tuple)):
     return ltype(l)
             
 #create dictionary of weight per variant
-def make_weights_dict(weight_file,chrom,pos,coord,ea,weight,vcf_chrom):
-    #dictionary format variant:(effectallele, effect)
-    weight_dict={}
-    with open(weight_file) as f:
+def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
+    """
+    Read file with weights into dictionary and regions files for tabix.
+    """
+    command=open_zip(weight_file)
+    counter=0
+    with command as f:
         for line in f:
             ls=line.rstrip()
             if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
-                if chrom is not None and pos is not None: #chr and pos are separate  in weight file
+                if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
                     if vcf_chrom is not None: #only save info for chromosome of interest
                         if int(lineList[chrom])==vcf_chrom:
-                            coordinate=":".join([str(lineList[chrom]),str(lineList[pos])])
+                            coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                             weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
-                else: #chr and pos are in coordinate form in weight file
-                    if vcf_chrom is not None:  #only save info for chromosome of interest
-                        if lineList[coord].split(":")[0]==vcf_chrom:
-                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
+                    else:
+                        coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
+                        weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
+                elif coord is not None:
+                    if len(lineList[coord].split(":"))!=4:
+                        sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
+                    if vcf_chrom is not None:
+                       if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
+                           weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
+                           
+                #dont need an else condition because of argument checks
     return weight_dict
+
 
 #write out regions file to use with tabix, gets coordinates from weights file
 def make_regions_file(weight_file,chrom,pos,coord,ea,weight,vcf_chrom,output_name):
+
+    #initialize temporary file
+#    sys.stderr.write("Writing temporary file for marker names in bed format\n")
+ #   regions = NamedTemporaryFile(delete=True)
+  #  with open(regions.name, 'w') as tmp:
+                    
     with open(weight_file) as f:
         if chrom is not None and pos is not None: #chr and pos are separate  in weight file
             regions = np.genfromtxt(f, usecols=(chrom,pos), names=("Chr", "Pos"), dtype=None, skip_header=16)
@@ -119,6 +168,7 @@ def make_regions_file(weight_file,chrom,pos,coord,ea,weight,vcf_chrom,output_nam
     print >> sys.stderr, "Now writing regions file: %s" % output_name
     with open(output_name, 'w') as out:
         np.savetxt(output_name, regions, delimiter="\t", fmt='%d')
+    #region file is tab delimited chr and pos required by tabix 
     return region_count
 
 #########################
@@ -131,7 +181,7 @@ def main():
     args=get_settings()
 
     #create dictionary of weights per variant and write out regions file for tabix
-    weight_file_dict=make_weights_dict(args.weight_file,args.chrom_col,args.pos_col,args.coord_col,args.ea_col,args.weight_col,args.chrom)
+    read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
 
     #open ID file
     #Assumes order in VCF is the same across everything provided 
@@ -161,7 +211,10 @@ def main():
         print >> sys.stderr, "Now reading in: %s" % file_x
         f = Popen(['tabix', '-R', regions_output_name, file_x], stdout=PIPE)
         f = f.communicate()[0]
-        
+
+        print(sample_score_dict)
+        print(weight_file_dict)
+        print(f)
         #If the tabix command finds one of the risk variants in that chunk:
         #To do: record the number of markers actually found and included because risk marker list may differ from variants in data of interest
         if f != '':
@@ -170,7 +223,7 @@ def main():
             test_results = np.asarray([flatten((weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_file_dict])
             #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
             #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
-
+            print(test_results)
             #if (np.shape(test_results)[0] == 1):
             #    test_results = np.vstack(test_results, np.zeros(np.shape(test_results))
             #Assumes DS in VCF is in terms of the alternate allele 
