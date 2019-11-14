@@ -40,7 +40,7 @@ import sys
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 #Takes a fairly generalized weights file
-# - Format your weight file as chr:pos, effect  allele, weight OR provide 0-based column numbers for these
+# - Format your weight file as chr:pos, effect allele, weight OR provide 0-based column numbers for chr, pos, chr:pos, effect allele, weight
 # - Provide number of lines that have ## or text header to ignore when reading in file
 ###########################
 ##### PARSE ARGUMENTS ####
@@ -56,7 +56,7 @@ def get_settings():
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
-    parser.add_argument("-c","--chrom")
+    parser.add_argument("-c","--chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
     parser.add_argument('-i', '--id_file', default="/net/fantasia/home/sarahgra/Collaborator_projects/PRS_prediction_Cristen/MGI_sample_IDs")
     parser.add_argument('-o', '--output_file', default="polygenic_risk_score_results.txt")
     args=parser.parse_args()
