@@ -36,6 +36,7 @@ import gzip
 import io
 import numpy as np
 from glob import glob
+import sys
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 ###########################
