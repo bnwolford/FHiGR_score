@@ -39,12 +39,21 @@ from glob import glob
 import sys
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
+#Takes a fairly generalized weights file
+# - Format your weight file as chr:pos, effect  allele, weight OR provide 0-based column numbers for these
+# - Provide number of lines that have ## or text header to ignore when reading in file
 ###########################
 ##### PARSE ARGUMENTS ####
 ###########################
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
-    parser.add_argument('-s', '--score_file', default="scores_per_variant.txt")
+    parser.add_argument('-w', '--weight_file')
+    parser.add_argument("-r","--chrom_col",help="0-based column with chromosome in file",type=int)
+    parser.add_argument("-p","--pos_col",help="0-based column with end position of variant in file",type=int)
+    parser.add_argument("-d","--coord_col",help="0-based column with chromosome:position of variant in weight file", type=int,default=0)
+    parser.add_argument("-a","--ea_col",help="0-based column with effect allele",type=int,default=1)
+    parser.add_argument("-t","--weight_col",help="0-based column with weight",type=int,default=2)
+    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
     parser.add_argument("-c","--chrom")
@@ -76,6 +85,41 @@ def flatten(l, ltypes=(list, tuple)):
         i += 1
     return ltype(l)
             
+#create dictionary of weight per variant
+def make_weights_dict(weight_file,chrom,pos,coord,ea,weight,vcf_chrom):
+    #dictionary format variant:(effectallele, effect)
+    weight_dict={}
+    with open(weight_file) as f:
+        for line in f:
+            ls=line.rstrip()
+            if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
+                lineList=ls.split() #assumes whitespace delimiter, space or tab
+                if chrom is not None and pos is not None: #chr and pos are separate  in weight file
+                    if vcf_chrom is not None: #only save info for chromosome of interest
+                        if int(lineList[chrom])==vcf_chrom:
+                            coordinate=":".join([str(lineList[chrom]),str(lineList[pos])])
+                            weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
+                else: #chr and pos are in coordinate form in weight file
+                    if vcf_chrom is not None:  #only save info for chromosome of interest
+                        if lineList[coord].split(":")[0]==vcf_chrom:
+                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
+    return weight_dict
+
+#write out regions file to use with tabix, gets coordinates from weights file
+def make_regions_file(weight_file,chrom,pos,coord,ea,weight,vcf_chrom,output_name):
+    with open(weight_file) as f:
+        if chrom is not None and pos is not None: #chr and pos are separate  in weight file
+            regions = np.genfromtxt(f, usecols=(chrom,pos), names=("Chr", "Pos"), dtype=None, skip_header=16)
+        else:   #coordinate in weight file
+             regions = np.genfromtxt(f, delimiter=":", usecols=(coord,coord+1), names=("Chr", "Pos"), dtype=None, skip_header=16) 
+    if vcf_chrom is not None:
+        regions=regions[regions["Chr"] == int(vcf_chrom)] #filter score file to just the chromosome the VCF corresponds to
+    regions = np.sort(regions, order=["Chr", "Pos"])
+    region_count=regions.size
+    print >> sys.stderr, "Now writing regions file: %s" % output_name
+    with open(output_name, 'w') as out:
+        np.savetxt(output_name, regions, delimiter="\t", fmt='%d')
+    return region_count
 
 #########################
 ########## MAIN #########
@@ -86,10 +130,8 @@ def main():
     #get arguments
     args=get_settings()
 
-    #Create dictionary of scores per variant
-    #dictionary format variant:(effectallele, effect)
-    with open(args.score_file) as f:
-        score_file_dict = {line.split()[0]:(line.split()[1],float(line.split()[2])) for line in f}
+    #create dictionary of weights per variant and write out regions file for tabix
+    weight_file_dict=make_weights_dict(args.weight_file,args.chrom_col,args.pos_col,args.coord_col,args.ea_col,args.weight_col,args.chrom)
 
     #open ID file
     with open(args.id_file) as f:
@@ -98,19 +140,11 @@ def main():
     #Create dictionary to keep track of total scores per person, set initial value to zero
     sample_score_dict = {x:0 for x in sample_id}    
 
-
     #Write out regions file for tabix, getting regions from score file
-    with open(args.score_file) as f:
-        regions = np.genfromtxt(f, delimiter=":", usecols=(0,1), names=("Chr", "Pos"), dtype=None) #requires CHR:POS format in first column
-    if args.chrom is not None:
-        regions=regions[regions["Chr"] == int(args.chrom)] #filter score file to just the chromosome the VCF corresponds to
-    regions = np.sort(regions, order=["Chr", "Pos"])
-    regions_output_name = "Regions_" + args.score_file
-    print("Now writing regions file: %s" % regions_output_name)
-    with open(regions_output_name, 'w') as out:
-        np.savetxt(regions_output_name, regions, delimiter="\t", fmt='%d')
+    regions_output_name = "Regions_" + args.weight_file.split("/")[-1]
+    region_count=make_regions_file(args.weight_file,args.chrom_col,args.pos_col,args.coord_col,args.ea_col,args.weight_col,args.chrom,regions_output_name)
         
-    #Calculate dosages per individual, Make sure to check allele
+    #Calculate weighted dosages per individual, Make sure to check allele
 
     ## Handle multi or single VCF
     if args.multi_vcf is not None:
@@ -118,17 +152,20 @@ def main():
     elif args.single_vcf is not None:
         file_list = [args.single_vcf]
 
-    #loop over VCFs   
+    #record the number of markers actually found and included because risk marker list may differ from variants in data of interest
+    variant_count=0
+    #loop over VCFs
     for file_x in file_list:
-        print("Now reading in: %s" % file_x)
+        print >> sys.stderr, "Now reading in: %s" % file_x
         f = Popen(['tabix', '-R', regions_output_name, file_x], stdout=PIPE)
         f = f.communicate()[0]
-
+        
         #If the tabix command finds one of the risk variants in that chunk:
         #To do: record the number of markers actually found and included because risk marker list may differ from variants in data of interest
         if f != '':
+            variant_count+=1 #add to marker count
             #This will return the effect allele and effect for each line if variant is in the risk score and not a comment line, and then the dosage line
-            test_results = np.asarray([flatten((score_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], score_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in score_file_dict])
+            test_results = np.asarray([flatten((score_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_file_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_file_dict])
             #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
             #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
 
@@ -150,6 +187,8 @@ def main():
             for x in range(len(dosage_scores_sum)):
                 sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
 
+    print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (region_count,variant_count)
+    
     with open(args.output_file, 'w') as out:
         out.write("%s\t%s\n" % ("individual", "score"))
         for x in range(len(sample_id)):
