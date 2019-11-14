@@ -134,6 +134,7 @@ def main():
     weight_file_dict=make_weights_dict(args.weight_file,args.chrom_col,args.pos_col,args.coord_col,args.ea_col,args.weight_col,args.chrom)
 
     #open ID file
+    #Assumes order in VCF is the same across everything provided 
     with open(args.id_file) as f:
         sample_id = [line.rstrip() for line in f]
 
