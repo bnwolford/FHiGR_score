@@ -141,7 +141,7 @@ def main():
     sample_score_dict = {x:0 for x in sample_id}    
 
     #Write out regions file for tabix, getting regions from score file
-    regions_output_name = "Regions_" + args.weight_file.split("/")[-1]
+    regions_output_name = "Regions_" + str(args.chrom) + args.weight_file.split("/")[-1]
     region_count=make_regions_file(args.weight_file,args.chrom_col,args.pos_col,args.coord_col,args.ea_col,args.weight_col,args.chrom,regions_output_name)
         
     #Calculate weighted dosages per individual, Make sure to check allele
