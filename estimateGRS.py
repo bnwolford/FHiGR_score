@@ -40,6 +40,7 @@ import sys
 from tempfile import NamedTemporaryFile
 import math
 from collections import OrderedDict
+from collections import Counter 
 import os
 import multiprocessing as mp
 #import pysam
@@ -165,7 +166,10 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
 #write out regions file to use with tabix, gets coordinates from weights file
 def make_regions_file(weight_dict, output_name,chunk):
     number_markers=len(weight_dict.keys())
-    num_files=int(math.ceil(number_markers / chunk))
+    if int(number_markers) < int(chunk):
+        num_files=1
+    else:
+        num_files=int(math.ceil(number_markers / chunk))
     tmpFileList=[]
     sys.stderr.write("Writing temporary files for marker regions\n")
 
@@ -179,27 +183,70 @@ def make_regions_file(weight_dict, output_name,chunk):
 
     return tmpFileList,number_markers
 
-def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict):
+def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output):
     cmd_list=[]
-    results_list=[]
     for vcf in vcf_list: #loop over vcf(s)
         sys.stderr.write("Now reading in: %s\n" % vcf)
         for j in range(len(tmpFileNames)):
             cmd_list.append([tabix_path, '-R',tmpFileNames[j] , vcf]) #make list of lists for commands
         pool = mp.Pool(cpu) #use user defined number of cpus, user should also specify this value for job scheduler
-        pfunc=partial(process_function,weight_dict=weight_dict) #set weight_dict as a standing variable for the process_function
-        results_list=pool.map(pfunc,cmd_list) 
+        pfunc=partial(process_function,weight_dict=weight_dict,sample_id=sample_id) #set weight_dict as a standing variable for the process_function
+        try:
+            results_list=pool.map_async(pfunc,cmd_list)
+            print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d processes\n" % (cpu,len(cmd_list))
+        except KeyboardInterrupt:
+            print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
+            pool.terminate()
+        else:
+            print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
+            pool.close()
+        pool.join()
+        sys.stderr.write("Merging per sample scores across chunked regions and VCFs\n")
+        c=Counter() #initialize counter
+        for d in results_list.get():
+            c.update(d) #sum across all the dictionaries 
+        print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
+    #write output file
+    print >> sys.stderr, "Writing output file\n"
+    outputname=output + "_" + "scores.txt"
+    with open(outputname, 'w') as out:
+        out.write("%s\t%s\n" % ("individual", "score"))
+        for x in range(len(sample_id)):
+            out.write("%s\t%.8f\n" % (sample_id[x], c[sample_id[x]]))
+
         
 #function to multiprocess
-def process_function(cmd,weight_dict):
+def process_function(cmd,weight_dict,sample_id):
+    #Create dictionary to keep track of total scores per person, set initial value to zero
+    sample_score_dict = {x:0 for x in sample_id}
+    marker_count=0
     f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     f = f.communicate()[0]
     if f!="":
-        test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])            
+        test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])
+        #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
+        #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
+        marker_count+=len(test_results)
         if (np.shape(test_results)[0] == 1):
             test_results = np.vstack(test_results, np.zeros(np.shape(test_results)))
-            print(test_results)
-                                     
+        #Assumes DS in VCF is in terms of the alternate allele
+        #Where effect allele from risk score formula matches alternative allele, multiply directly
+        matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
+        #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
+        matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
+         
+        #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
+        # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
+        matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
+        matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
+         
+        #Sum down columns
+        dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
+        for x in range(len(dosage_scores_sum)):
+            sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
+    sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF 
+
+    return(sample_score_dict)
 
 
 #########################
@@ -221,10 +268,7 @@ def main():
     #Assumes order in VCF is the same across everything provided
     with open(args.id_file) as f:
         sample_id = [line.rstrip() for line in f]
-
-    #Create dictionary to keep track of total scores per person, set initial value to zero
-    sample_score_dict = {x:0 for x in sample_id}
-
+        
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,\
                              args.ea_col,args.weight_col,args.vcf_chrom)
@@ -241,8 +285,8 @@ def main():
     elif args.single_vcf is not None:
         vcf_list = [args.single_vcf]
 
-    #Calculate weighted dosages per individual, Make sure to check allele
-    getDosage(tmpFileNames,args.tabix,vcf_list,args.cpu,weight_dict)
+    #Calculate weighted dosages per individual, Make sure to check allele, print output 
+    getDosage(tmpFileNames,args.tabix,vcf_list,args.cpu,weight_dict,sample_id,args.output_prefix)
         
         
     #record the number of markers actually found and included because risk marker list may differ from variants in data of interest
