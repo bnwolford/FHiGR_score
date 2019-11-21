@@ -31,7 +31,7 @@
 
 from __future__ import division
 import argparse
-from subprocess import Popen, PIPE
+import subprocess
 import gzip
 import io
 import numpy as np
@@ -42,6 +42,8 @@ import math
 from collections import OrderedDict
 import os
 import multiprocessing as mp
+#import pysam
+from functools import partial
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 #Takes a fairly generalized weights file
@@ -61,13 +63,12 @@ def get_settings():
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
-    parser.add_argument("-k","--chunk",help="Number of markers from weight file to run at a time",default=1000)
+    parser.add_argument("-k","--chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
     parser.add_argument("-c","--vcf_chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
     parser.add_argument('-i', '--id_file', default="/net/fantasia/home/sarahgra/Collaborator_projects/PRS_prediction_Cristen/MGI_sample_IDs")
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
-    parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
     parser.add_argument("--tabix",help="bcftools path",type=str,default="/usr/local/bin/tabix")
     parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
@@ -173,9 +174,33 @@ def make_regions_file(weight_dict, output_name,chunk):
         tmpFileList.append(regions.name)
         with open(regions.name, 'w') as tmp:
             for coord in weight_dict.keys()[i*chunk:(i+1)*chunk]:
-                tmp.write(coord + "\n")
+                chrom,pos,ref,alt=coord.split(":")
+                tmp.write(chrom+"\t"+pos + "\n")
 
     return tmpFileList,number_markers
+
+def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict):
+    cmd_list=[]
+    results_list=[]
+    for vcf in vcf_list: #loop over vcf(s)
+        sys.stderr.write("Now reading in: %s\n" % vcf)
+        for j in range(len(tmpFileNames)):
+            cmd_list.append([tabix_path, '-R',tmpFileNames[j] , vcf]) #make list of lists for commands
+        pool = mp.Pool(cpu) #use user defined number of cpus, user should also specify this value for job scheduler
+        pfunc=partial(process_function,weight_dict=weight_dict) #set weight_dict as a standing variable for the process_function
+        results_list=pool.map(pfunc,cmd_list) 
+        
+#function to multiprocess
+def process_function(cmd,weight_dict):
+    f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    f = f.communicate()[0]
+    if f!="":
+        test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])            
+        if (np.shape(test_results)[0] == 1):
+            test_results = np.vstack(test_results, np.zeros(np.shape(test_results)))
+            print(test_results)
+                                     
+
 
 #########################
 ########## MAIN #########
@@ -216,6 +241,10 @@ def main():
     elif args.single_vcf is not None:
         vcf_list = [args.single_vcf]
 
+    #Calculate weighted dosages per individual, Make sure to check allele
+    getDosage(tmpFileNames,args.tabix,vcf_list,args.cpu,weight_dict)
+        
+        
     #record the number of markers actually found and included because risk marker list may differ from variants in data of interest
  #   variant_count=0
     #loop over VCFs
