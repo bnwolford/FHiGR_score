@@ -184,28 +184,27 @@ def make_regions_file(weight_dict, output_name,chunk):
     return tmpFileList,number_markers
 
 def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output):
-    cmd_list=[]
+    cmd_list=[] #initialize command list
+    c=Counter() #initialize counter
     for vcf in vcf_list: #loop over vcf(s)
-        sys.stderr.write("Now reading in: %s\n" % vcf)
-        for j in range(len(tmpFileNames)):
+        for j in range(len(tmpFileNames)): #loop over chunked region files
             cmd_list.append([tabix_path, '-R',tmpFileNames[j] , vcf]) #make list of lists for commands
         pool = mp.Pool(cpu) #use user defined number of cpus, user should also specify this value for job scheduler
         pfunc=partial(process_function,weight_dict=weight_dict,sample_id=sample_id) #set weight_dict as a standing variable for the process_function
         try:
             results_list=pool.map_async(pfunc,cmd_list)
-            print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d processes\n" % (cpu,len(cmd_list))
+            print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d processes to perform tabix on %s\n" % (cpu,len(cmd_list),vcf)
         except KeyboardInterrupt:
             print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
             pool.terminate()
         else:
-            print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
             pool.close()
+            print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
         pool.join()
         sys.stderr.write("Merging per sample scores across chunked regions and VCFs\n")
-        c=Counter() #initialize counter
-        for d in results_list.get():
-            c.update(d) #sum across all the dictionaries 
-        print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
+        for dictionaries in results_list.get():
+            c.update(dictionaries) #sum across all the dictionaries 
+    print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
     #write output file
     print >> sys.stderr, "Writing output file\n"
     outputname=output + "_" + "scores.txt"
