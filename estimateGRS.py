@@ -45,6 +45,8 @@ import os
 import multiprocessing as mp
 #import pysam
 from functools import partial
+import time
+import signal
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 #Takes a fairly generalized weights file
@@ -183,32 +185,38 @@ def make_regions_file(weight_dict, output_name,chunk):
 
     return tmpFileList,number_markers
 
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output):
     cmd_list=[] #initialize command list
-    c=Counter() #initialize counter
     for vcf in vcf_list: #loop over vcf(s)
-        for j in range(len(tmpFileNames)): #loop over chunked region files
-            cmd_list.append([tabix_path, '-R',tmpFileNames[j] , vcf]) #make list of lists for commands
-        pool = mp.Pool(cpu) #use user defined number of cpus, user should also specify this value for job scheduler
-        pfunc=partial(process_function,weight_dict=weight_dict,sample_id=sample_id) #set weight_dict as a standing variable for the process_function
-        try:
-            results_list=pool.map_async(pfunc,cmd_list)
-            print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d processes to perform tabix on %s\n" % (cpu,len(cmd_list),vcf)
-        except KeyboardInterrupt:
-            print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
-            pool.terminate()
-        else:
-            pool.close()
-            print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
+        for region in tmpFileNames: #loop over chunked region files
+            cmd_list.append([tabix_path, '-R',region , vcf]) #make list of lists for commands
+    pool = mp.Pool(cpu,init_worker) #use user defined number of cpus, user should also specify this value for job scheduler
+    pfunc=partial(process_function,weight_dict=weight_dict,sample_id=sample_id) #set weight_dict as a standing variable for the process_function
+    results_list=pool.map_async(pfunc,cmd_list)
+    try:
+        print >> sys.stderr, "Using multiprocessing pool functionality with %d cpus and %d processes to perform tabix on %d VCF(s)" % (cpu,len(cmd_list),len(vcf_list))
+        time.sleep(10)
+    except KeyboardInterrupt:
+        print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
+        pool.terminate()
         pool.join()
-        sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
-        
-        for dictionaries in results_list.get():
-            c.update(dictionaries) #sum across all the dictionaries 
+        sys.exit("Exiting program\n")
+    else:
+        pool.close()
+        pool.join()
+        print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
+    #merge all the dosages 
+    sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
+    c=Counter() #initialize counter
+    for dictionaries in results_list.get():
+        c.update(dictionaries) #sum across all the dictionaries 
     print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
     #write output file
-    print >> sys.stderr, "Writing output file\n"
     outputname=output + "_" + "scores.txt"
+    print >> sys.stderr, "Writing output file %s \n" % (outputname)
     with open(outputname, 'w') as out:
         out.write("%s\t%s\n" % ("individual", "score"))
         for x in range(len(sample_id)):
