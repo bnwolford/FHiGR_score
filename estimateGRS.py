@@ -225,11 +225,12 @@ def process_function(cmd,weight_dict,sample_id):
     f = f.communicate()[0]
     if f!="":
         test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])
+        print(test_results)
         #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
         #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
         marker_count+=len(test_results)
-        if (np.shape(test_results)[0] == 1):
-            test_results = np.vstack(test_results, np.zeros(np.shape(test_results)))
+        if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
+            test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
         #Assumes DS in VCF is in terms of the alternate allele
         #Where effect allele from risk score formula matches alternative allele, multiply directly
         matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
