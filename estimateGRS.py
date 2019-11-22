@@ -145,8 +145,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
             if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
-                    if vcf_chrom is not None: #only save info for chromosome of interest
-                        print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  vcf_chrom
+                    if vcf_chrom is not None: #only save info for chromosome of interes
                         if int(lineList[chrom])==vcf_chrom:
                             coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                             weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
@@ -157,7 +156,6 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                     if len(lineList[coord].split(":"))!=4:
                         sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
                     if vcf_chrom is not None:
-                        print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  vcf_chrom
                         if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
                 else:  #dont need an else condition because of argument check
@@ -203,7 +201,8 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
             pool.close()
             print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
         pool.join()
-        sys.stderr.write("Merging per sample scores across chunked regions and VCFs\n")
+        sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
+        
         for dictionaries in results_list.get():
             c.update(dictionaries) #sum across all the dictionaries 
     print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
@@ -225,12 +224,14 @@ def process_function(cmd,weight_dict,sample_id):
     f = f.communicate()[0]
     if f!="":
         test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])
-        print(test_results)
         #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
         #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
         marker_count+=len(test_results)
         if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
             test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
+        #To Do: get  this to work so we can handle the error if no marker  matches in VCF
+        elif (np.shape(test_results)[0] == 0): #no markers
+            test_results=[]
         #Assumes DS in VCF is in terms of the alternate allele
         #Where effect allele from risk score formula matches alternative allele, multiply directly
         matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
@@ -266,6 +267,9 @@ def main():
     elif args.single_vcf is not None:
         file_list = [args.single_vcf]
 
+    if args.vcf_chrom is not None:
+         print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  args.vcf_chrom
+        
     #open ID file
     #Assumes order in VCF is the same across everything provided
     with open(args.id_file) as f:
