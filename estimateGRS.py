@@ -146,6 +146,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
                     if vcf_chrom is not None: #only save info for chromosome of interest
+                        print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  vcf_chrom
                         if int(lineList[chrom])==vcf_chrom:
                             coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                             weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
@@ -156,7 +157,8 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                     if len(lineList[coord].split(":"))!=4:
                         sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
                     if vcf_chrom is not None:
-                       if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
+                        print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  vcf_chrom
+                        if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
                 else:  #dont need an else condition because of argument check
                     continue       
@@ -204,7 +206,7 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
         sys.stderr.write("Merging per sample scores across chunked regions and VCFs\n")
         for dictionaries in results_list.get():
             c.update(dictionaries) #sum across all the dictionaries 
-    print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
+    print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
     #write output file
     print >> sys.stderr, "Writing output file\n"
     outputname=output + "_" + "scores.txt"
@@ -269,8 +271,7 @@ def main():
         sample_id = [line.rstrip() for line in f]
         
     #create dictionary of weights per variant
-    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,\
-                             args.ea_col,args.weight_col,args.vcf_chrom)
+    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
     
     #Write out regions file for tabix using dictionary and chunk parameter 
     #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
