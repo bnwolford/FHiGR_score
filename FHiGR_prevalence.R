@@ -31,7 +31,7 @@ optionList <- list(
   make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
-  make_option("--codeDir",type="character",default="/FHiGRS_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGR_score/]")
+  make_option("--codeDir",type="character",default="/FHiGR_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGR_score/]")
 )
 
 parser <- OptionParser(
