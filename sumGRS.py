@@ -23,10 +23,14 @@ import scipy.stats as ss
 ###########################
 def get_settings():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s","--sample_file",help="File with FID and IID of the samples you expect to calcualte GRS for",required=True,type=str)
+    parser.add_argument("-p","--plink_file",help="File with header and FID and IID of the samples you expect to calcualte GRS for",type=str)
+    parser.add_argument("-s","--sample_file",help="File with no header and one column of samples that you expect to calcualte GRS for",type=str)
     parser.add_argument("-c","--config",help="Config file with new line delimited list of all the file names to merge",required=True,type=str)
     parser.add_argument("-o","--output",help="Output prefix. Will have .txt appended",required=True,type=str)
     parser.add_argument("-i","--invNorm",help="Will print additional column with inverse normalized score",action='store_true')
+    parser.add_argument("--id_column",help="0-based column with ID in the score file. IDs should match those from plink_file or sample_file. If not provided, assumes FID, IID, score",type=int)
+    parser.add_argument("--score_column",help="0-based column with score in the score file. If not provided, assumes FID, IID, score",type=int)
+    parser.add_argument("--header",help="Flag if score file has header.",action='store_true',default=False)
     parser.set_defaults(chrom=True,invNorm=False)
     args=parser.parse_args()
     return args
@@ -71,7 +75,8 @@ def check(config):
                     print >> sys.stderr, "%s is an empty file\n" % fn
     return(file_list)
 
-def read_samples(sample):
+
+def read_plink(sample):
     """
     Reads a sample file with FID and IID. Assumes header. This is the samples that you expect to have GRS values for in each chunk.
     """
@@ -88,7 +93,20 @@ def read_samples(sample):
                 lineList=ls.split("\t") #assume tab seperator in .sample file from VCFtoDOSEforGRS.py
                 sample_list.append(".".join(lineList[0:2])) #put FID.IID values in a list
     return sample_list
-    
+
+
+def read_sample(sample):
+    """
+    Reads a sample file without header and just one column of sample IDs that you expect to have GRS values for in each chunk.
+    """
+    sample_list=[]
+    command=open_zip(sample)
+    with command as f:
+        for line in f:
+            ls=line.rstrip()
+            sample_list.append(ls)
+    return sample_list
+
 def merge(fl,sl):
     """
     Looks at all .gen files matching the string given. Returns dictionary with information and potentially flags any missing chromosomes or chunks.
@@ -113,6 +131,34 @@ def merge(fl,sl):
                         ddict[ids].append(lineList[2])
                         
     return(ddict)
+
+
+def merge(fl,sl,id,score,header):
+    """
+    Looks at all files matching the string given. Returns dictionary with the id and score information.
+    """
+    ddict={} #initialize dictionary
+    for sample in sl:
+        ddict[sample]=[] #initialize list
+
+    for score_file in fl:
+        command=open_zip(score_file)
+        count=0
+        if command!=0:
+            with command as f:
+                for line in f:
+                    if header is True and count==0: #skip 1 line header
+                        count+=1
+                        next
+                    else:
+                        ls=line.rstrip()
+                        lineList=ls.split(" ")
+                        ids=lineList[id]
+                        ddict[id].append(lineList[score])
+    return(ddict)
+                        
+
+
 
 def output(o,d,list_size,inorm):
 
@@ -209,10 +255,19 @@ def main():
     file_list=check(args.config)
 
     #read in samples that are expected
-    sample_list=read_samples(args.sample_file)
+    if (args.sample_file is None and args.plink_file is None) or (args.sample_file is not None and args.plink_file is not None):
+        sys.exit("--sample_file or --plink_file is required")
+    elif args.plink_file is not None:
+        sample_list=read_plink(args.plink_file)
+    elif args.sample_file is not None:
+        sample_list=read_sample(args.sample_file)
 
     #merge data
-    data=merge(file_list,sample_list)
+    if (args.score_column and args.id_column):
+        data=merge_custom(file_list,sample_list,score_column,id_column,header) #provide custom columns
+    else:
+        data=merge(file_list,sample_list) #assumes score results file with FID, IID, score
+    
 
     #write output
     output(args.output,data,len(file_list),args.invNorm)
