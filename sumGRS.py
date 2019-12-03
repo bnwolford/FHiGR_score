@@ -183,16 +183,20 @@ def output(o,d,list_size,inorm):
             id_list.append(ids)
         #otherwise write to file
         else:
-            id_1,id_2=ids.split(".")
-            out_file.write("\t".join([id_1,id_2,str(GRS)])+"\n")
-
+            if "." in ids[0]: #if this script created FID.IID
+                id_1,id_2=ids.split(".")
+                out_file.write("\t".join([id_1,id_2,str(GRS)])+"\n")
+            else:
+                 out_file.write("\t".join([ids,ids,str(GRS)])+"\n")
     #now we inverse normalize and write out data using lists 
     if inorm:
         trans_GRS_list=rank_INT(GRS_list)
         for i in range(len(trans_GRS_list)):
-            id_1,id_2=id_list[i].split(".")
-            out_file.write("\t".join([id_1,id_2,str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
-            
+            if "." in ids[0]: #if this script created FID.IID
+                id_1,id_2=id_list[i].split(".")
+                out_file.write("\t".join([id_1,id_2,str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
+            else:
+                out_file.write("\t".join([id_list[i],id_list[i],str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
     return 0
 
 
@@ -254,7 +258,7 @@ def main():
     #check that all the chunk/chr files exist
     file_list=check(args.config)
 
-    #read in samples that are expected
+    #read in samples that are expected from either a PLINK type file or sample list like from bcftools query -l
     if (args.sample_file is None and args.plink_file is None) or (args.sample_file is not None and args.plink_file is not None):
         sys.exit("--sample_file or --plink_file is required")
     elif args.plink_file is not None:
@@ -262,7 +266,7 @@ def main():
     elif args.sample_file is not None:
         sample_list=read_sample(args.sample_file)
 
-    #merge data
+    #merge data assuming FID, IID, score or a custom score results file 
     if (args.score_column is not None and args.id_column is not None):
         data=merge_custom(file_list,sample_list,args.id_column,args.score_column,args.header) #provide custom columns
     else:
