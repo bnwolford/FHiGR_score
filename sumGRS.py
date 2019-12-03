@@ -133,7 +133,7 @@ def merge(fl,sl):
     return(ddict)
 
 
-def merge(fl,sl,id,score,header):
+def merge_custom(fl,sl,id_col,score_col,header):
     """
     Looks at all files matching the string given. Returns dictionary with the id and score information.
     """
@@ -152,9 +152,9 @@ def merge(fl,sl,id,score,header):
                         next
                     else:
                         ls=line.rstrip()
-                        lineList=ls.split(" ")
-                        ids=lineList[id]
-                        ddict[id].append(lineList[score])
+                        lineList=ls.split()
+                        sample_id=lineList[id_col]
+                        ddict[sample_id].append(lineList[score_col])
     return(ddict)
                         
 
@@ -263,8 +263,8 @@ def main():
         sample_list=read_sample(args.sample_file)
 
     #merge data
-    if (args.score_column and args.id_column):
-        data=merge_custom(file_list,sample_list,score_column,id_column,header) #provide custom columns
+    if (args.score_column is not None and args.id_column is not None):
+        data=merge_custom(file_list,sample_list,args.id_column,args.score_column,args.header) #provide custom columns
     else:
         data=merge(file_list,sample_list) #assumes score results file with FID, IID, score
     
