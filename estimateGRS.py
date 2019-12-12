@@ -57,7 +57,7 @@ import signal
 ###########################
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
-    parser.add_argument('-w', '--weight_file')
+    parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arugments.")
     parser.add_argument("-cc","--chrom_col",help="0-based column with chromosome in file",type=int)
     parser.add_argument("-pc","--pos_col",help="0-based column with end position of variant in weight file",type=int)
     parser.add_argument("-dc","--coord_col",help="0-based column with chromosome:position:ref:alt of variant in weight file", type=int)
@@ -168,7 +168,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
 #write out regions file to use with tabix, gets coordinates from weights file
 def make_regions_file(weight_dict, output_name,chunk):
     number_markers=len(weight_dict.keys())
-    if int(number_markers) < int(chunk):
+    if int(number_markers) <= int(chunk):
         num_files=1
     else:
         num_files=int(math.ceil(number_markers / chunk))
@@ -182,7 +182,6 @@ def make_regions_file(weight_dict, output_name,chunk):
             for coord in weight_dict.keys()[i*chunk:(i+1)*chunk]:
                 chrom,pos,ref,alt=coord.split(":")
                 tmp.write(chrom+"\t"+pos + "\n")
-
     return tmpFileList,number_markers
 
 def init_worker():
@@ -230,31 +229,40 @@ def process_function(cmd,weight_dict,sample_id):
     marker_count=0
     f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     f = f.communicate()[0]
+    test_results=[]
     if f!="":
-        test_results = np.asarray([flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict])
-        #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
-        #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
-        marker_count+=len(test_results)
-        if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
-            test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
-        #To Do: get  this to work so we can handle the error if no marker  matches in VCF
-        elif (np.shape(test_results)[0] == 0): #no markers
-            test_results=[]
-        #Assumes DS in VCF is in terms of the alternate allele
-        #Where effect allele from risk score formula matches alternative allele, multiply directly
-        matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
-        #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
-        matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
+        for line in f.rstrip().split("\n"):
+            if line.split()[0][0] != "#":
+                coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]
+                alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order 
+                if coord in weight_dict:
+                    test_results = np.asarray([flatten((weight_dict[coord][0], weight_dict[coord][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]]))])
+                elif alt_coord in weight_dict:
+                     test_results = np.asarray([flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], line.rstrip().split()[0:5],[value.split(":")[1] for value in line.rstrip().split()[9:]]))])
+    #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
+    #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
+    marker_count+=len(test_results)
+    if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
+        test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
+    #To Do: get  this to work so we can handle the error if no marker  matches in VCF
+    elif (np.shape(test_results)[0] == 0): #no markers
+        test_results=[]
+    #Assumes DS in VCF is in terms of the alternate allele
+    #Where effect allele from risk score formula matches alternative allele, multiply directly
+    matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
+    #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
+    matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
          
-        #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
-        # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
-        matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
-        matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
-         
-        #Sum down columns
-        dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
-        for x in range(len(dosage_scores_sum)):
-            sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
+    #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
+    # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
+    matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
+    matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
+        
+    #Sum down columns
+    dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
+    for x in range(len(dosage_scores_sum)):
+        sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
+        
     sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF 
 
     return(sample_score_dict)
