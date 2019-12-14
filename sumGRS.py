@@ -128,7 +128,8 @@ def merge(fl,sl):
                         ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
                         lineList=ls.split(" ")
                         ids=".".join(lineList[0:2])
-                        ddict[ids].append(lineList[2])
+                        if ids in ddict.keys():
+                            ddict[ids].append(lineList[2])
                         
     return(ddict)
 
@@ -154,7 +155,8 @@ def merge_custom(fl,sl,id_col,score_col,header):
                         ls=line.rstrip()
                         lineList=ls.split()
                         sample_id=lineList[id_col]
-                        ddict[sample_id].append(lineList[score_col])
+                        if sample_id in ddict.keys():
+                            ddict[sample_id].append(lineList[score_col])
     return(ddict)
                         
 
