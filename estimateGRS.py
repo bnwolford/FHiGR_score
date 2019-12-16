@@ -71,7 +71,8 @@ def get_settings():
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
-    parser.add_argument("-k","--chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
+    parser.add_argument("-k","--chunk",help="Split weights file into -n number of markers",action="store_true")
+    parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
     parser.add_argument("-c","--vcf_chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
@@ -304,10 +305,12 @@ def main():
 
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
+
+    #TO DO: use T/F chunk argument
     
     #Write out regions file for tabix using dictionary and chunk parameter 
     #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
-    tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.chunk)
+    tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk)
 
     ## Handle multi or single VCF
     if args.multi_vcf is not None:
