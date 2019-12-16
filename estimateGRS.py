@@ -172,12 +172,16 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
 
 
 #write out regions file to use with tabix, gets coordinates from weights file
-def make_regions_file(weight_dict, output_name,chunk):
+def make_regions_file(weight_dict, output_name,chunk,chunkTF):
     number_markers=len(weight_dict.keys())
-    if int(math.ceil(number_markers / chunk)) == 1: #chunk value >= than markers
+    if chunkTF is False:
         num_files=1
         chunk=number_markers
-        sys.stderr.write("--chunk parameter is greater than or equal to the number of markers. May want to consider a more appropriate chunk parameter. Writing one marker per region file\n")
+        sys.stderr.write("--chunk flag should be provided if weight markers are to be chunked into multiple tabix processes\n")
+    elif int(math.ceil(number_markers / chunk)) == 1: #chunk value >= than markers
+        num_files=1
+        chunk=number_markers
+        sys.stderr.write("--num_chunk parameter is greater than or equal to the number of markers. May want to consider a more appropriate parameter.\n")
     else:
         num_files=int(math.ceil(number_markers / chunk))
     tmpFileList=[]
@@ -305,12 +309,10 @@ def main():
 
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
-
-    #TO DO: use T/F chunk argument
     
     #Write out regions file for tabix using dictionary and chunk parameter 
     #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
-    tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk)
+    tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk,args.chunk)
 
     ## Handle multi or single VCF
     if args.multi_vcf is not None:
