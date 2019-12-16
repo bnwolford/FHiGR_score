@@ -48,6 +48,8 @@ from functools import partial
 import time
 import signal
 
+print(sys.version)
+
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 #Takes a fairly generalized weights file
 # - Format your weight file as chr:pos, effect allele, weight OR provide 0-based column numbers for chr, pos, chr:pos, effect allele, weight
@@ -161,19 +163,21 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                         if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
                 else:  #dont need an else condition because of argument check
-                    continue       
+                    continue
     return weight_dict
 
 
 #write out regions file to use with tabix, gets coordinates from weights file
 def make_regions_file(weight_dict, output_name,chunk):
     number_markers=len(weight_dict.keys())
-    if int(number_markers) <= int(chunk):
+    if int(math.ceil(number_markers / chunk)) == 1: #chunk value >= than markers
         num_files=1
+        chunk=number_markers
+        sys.stderr.write("--chunk parameter is greater than or equal to the number of markers. May want to consider a more appropriate chunk parameter. Writing one marker per region file\n")
     else:
         num_files=int(math.ceil(number_markers / chunk))
     tmpFileList=[]
-    sys.stderr.write("Writing temporary files for marker regions\n")
+    sys.stderr.write("Writing %d temporary files for marker regions\n" % num_files)
 
     for i in range(num_files):
         regions = NamedTemporaryFile(delete=False)
@@ -182,6 +186,7 @@ def make_regions_file(weight_dict, output_name,chunk):
             for coord in weight_dict.keys()[i*chunk:(i+1)*chunk]:
                 chrom,pos,ref,alt=coord.split(":")
                 tmp.write(chrom+"\t"+pos + "\n")
+    print(tmpFileList)
     return tmpFileList,number_markers
 
 def init_worker():
@@ -230,25 +235,28 @@ def process_function(cmd,weight_dict,sample_id):
     f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     f = f.communicate()[0]
     test_results=[]
-    if f!="":
+    if f!="": #if tabix query finds at  least one of  the  risk variants in that chunk
         for line in f.rstrip().split("\n"):
             if line.split()[0][0] != "#":
                 coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]
                 alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order 
                 if coord in weight_dict:
-                    test_results = np.asarray([flatten((weight_dict[coord][0], weight_dict[coord][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]]))])
+                    test_results.append(flatten((weight_dict[coord][0], weight_dict[coord][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])))
                 elif alt_coord in weight_dict:
-                     test_results = np.asarray([flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], line.rstrip().split()[0:5],[value.split(":")[1] for value in line.rstrip().split()[9:]]))])
+                     test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], line.rstrip().split()[0:5],[value.split(":")[1] for value in line.rstrip().split()[9:]])))
+
+       # test_results = [flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict]
+    test_results=np.asarray(test_results)
+
     #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
     #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
     marker_count+=len(test_results)
     if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
+        #print(np.shape(test_results))
         test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
-    #To Do: get  this to work so we can handle the error if no marker  matches in VCF
-    elif (np.shape(test_results)[0] == 0): #no markers
-        test_results=[]
+        #print(np.shape(test_results))
     #Assumes DS in VCF is in terms of the alternate allele
-    #Where effect allele from risk score formula matches alternative allele, multiply directly
+    #Where effect allele from risk score formula matches alternative allele (column 6), multiply directly
     matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
     #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
     matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
@@ -257,7 +265,7 @@ def process_function(cmd,weight_dict,sample_id):
     # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
     matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
     matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
-        
+
     #Sum down columns
     dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
     for x in range(len(dosage_scores_sum)):
@@ -290,15 +298,13 @@ def main():
     #Assumes order in VCF is the same across everything provided
     with open(args.id_file) as f:
         sample_id = [line.rstrip() for line in f]
-        
+
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
     
     #Write out regions file for tabix using dictionary and chunk parameter 
     #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
     tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.chunk)
-            
-    #Calculate weighted dosages per individual, Make sure to check allele
 
     ## Handle multi or single VCF
     if args.multi_vcf is not None:
