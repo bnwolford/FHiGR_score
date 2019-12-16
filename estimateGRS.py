@@ -47,7 +47,10 @@ import multiprocessing as mp
 from functools import partial
 import time
 import signal
-
+import datetime
+now = datetime.datetime.now()
+print ("Current date and time : ")
+print (now.strftime("%Y-%m-%d %H:%M:%S"))
 print(sys.version)
 
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
