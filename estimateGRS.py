@@ -71,7 +71,7 @@ def get_settings():
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
-    parser.add_argument("-k","--chunk",help="Split weights file into -n number of markers",action="store_true")
+    parser.add_argument("-k","--chunk",help="Split weights file into -n number of markers. If this is not used and many markers are in -w, the process is quite memory intensive",action="store_true")
     parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument('-m', '--multi_vcf', nargs='*')
     parser.add_argument('-v', '--single_vcf')
