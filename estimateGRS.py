@@ -52,7 +52,12 @@ now = datetime.datetime.now()
 print ("Current date and time : ")
 print (now.strftime("%Y-%m-%d %H:%M:%S"))
 print(sys.version)
-
+for module in sys.modules:
+    try:
+        print(module,sys.modules[module].__version__)
+    except:
+        pass
+    
 #This python script can be used to calculate genetic risk scores from dosages in VCF file and a score file with weights
 #Takes a fairly generalized weights file
 # - Format your weight file as chr:pos, effect allele, weight OR provide 0-based column numbers for chr, pos, chr:pos, effect allele, weight
@@ -240,11 +245,12 @@ def process_function(cmd,weight_dict,sample_id):
     #Create dictionary to keep track of total scores per person, set initial value to zero
     sample_score_dict = {x:0 for x in sample_id}
     marker_count=0
-    f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    f = f.communicate()[0]
+    f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
     test_results=[]
-    if f!="": #if tabix query finds at  least one of  the  risk variants in that chunk
-        for line in f.rstrip().split("\n"):
+#    f = f.communicate()[0]
+    with f.stdout:
+        for line in iter(f.stdout.readline,b''):
+            line=line.rstrip()
             if line.split()[0][0] != "#":
                 coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]
                 alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order 
@@ -255,7 +261,6 @@ def process_function(cmd,weight_dict,sample_id):
 
        # test_results = [flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict]
     test_results=np.asarray(test_results)
-
     #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
     #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
     marker_count+=len(test_results)
