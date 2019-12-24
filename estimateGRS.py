@@ -228,6 +228,7 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
     #merge all the dosages 
     sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
     c=Counter() #initialize counter
+    print(type(results_list))
     for dictionaries in results_list.get():
         c.update(dictionaries) #sum across all the dictionaries 
     print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
@@ -243,7 +244,6 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
 #function to multiprocess
 def process_function(cmd,weight_dict,sample_id):
     #Create dictionary to keep track of total scores per person, set initial value to zero
-    sample_score_dict = {x:0 for x in sample_id}
     marker_count=0
     f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
     test_results=[]
@@ -261,13 +261,16 @@ def process_function(cmd,weight_dict,sample_id):
 
        # test_results = [flatten((weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][0], weight_dict[(line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4])][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])) for line in f.rstrip().split("\n") if line.split()[0][0] != "#" if (line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]) in weight_dict]
     test_results=np.asarray(test_results)
+
     #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
     #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
     marker_count+=len(test_results)
     if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
         #print(np.shape(test_results))
         test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
-        #print(np.shape(test_results))
+    elif (np.shape(test_results)[0]==0): #if no rows (i.e. 0 markers)
+        #assumes length of sample ID is samples we are pulling from VCF when test_results is successful
+        test_results = np.vstack((np.zeros(len(sample_id)),np.zeros(len(sample_id))))
     #Assumes DS in VCF is in terms of the alternate allele
     #Where effect allele from risk score formula matches alternative allele (column 6), multiply directly
     matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
@@ -281,8 +284,8 @@ def process_function(cmd,weight_dict,sample_id):
 
     #Sum down columns
     dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
-    for x in range(len(dosage_scores_sum)):
-        sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
+    
+    sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
         
     sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF 
 
