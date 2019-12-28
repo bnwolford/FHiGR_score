@@ -40,7 +40,7 @@ import sys
 from tempfile import NamedTemporaryFile
 import math
 from collections import OrderedDict
-from collections import Counter 
+from collections import Counter
 import os
 import multiprocessing as mp
 #import pysam
@@ -80,13 +80,13 @@ def get_settings():
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
     parser.add_argument("--tabix",help="bcftools path",type=str,default="/usr/local/bin/tabix")
-    parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
+    parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",type=int,default=8)
     args=parser.parse_args()
 
     ## catches people using X chromosome VCF but only if doing on a per chromosome basis
     if str(args.vcf_chrom)=="X":
         sys.exit("This script currently only handles autosomes\n")
-    
+
     ## check if marker information is adequately provided
     if args.coord_col is None: #no coordinate offered
         check_list=[]
@@ -95,13 +95,13 @@ def get_settings():
             check_list.append(f!=None) #how many are empty
         if sum(check_list)==0:
             sys.exit("Need coordinate column for chr:pos:ref:alt or each of these pieces of information individually\n")
-        elif sum(check_list)!=4: 
+        elif sum(check_list)!=4:
             sys.exit("Need ALL four columns for chromosome, position, reference, alternate\n")
 
     ## check VCFs
     if args.single_vcf is None and args.multi_vcf is None:
          sys.exit("Need a path to VCF with * for multiple VCF if needed\n")
-            
+
     print >> sys.stderr, "%s\n"  % args
 
     return args
@@ -121,7 +121,7 @@ def open_zip(f):
         command=open(f,"rt")
         print >> sys.stderr, "Opening file %s\n" % f
     return command
-                            
+
 
 #flatten nested lists
 def flatten(l, ltypes=(list, tuple)):
@@ -138,7 +138,7 @@ def flatten(l, ltypes=(list, tuple)):
                 l[i:i + 1] = l[i]
         i += 1
     return ltype(l)
-            
+
 #create dictionary of weight per variant
 def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
     """
@@ -220,11 +220,11 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
         pool.close()
         pool.join()
         print >> sys.stderr, "Normal termination of multiprocesses upon completion\n"
-    #merge all the dosages 
+    #merge all the dosages
     sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
     c=Counter() #initialize counter
     for dictionaries in results_list.get():
-        c.update(dictionaries) #sum across all the dictionaries 
+        c.update(dictionaries) #sum across all the dictionaries
     print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
     #write output file
     outputname=output + "_" + "scores.txt"
@@ -234,20 +234,21 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
         for x in range(len(sample_id)):
             out.write("%s\t%.8f\n" % (sample_id[x], c[sample_id[x]]))
 
-        
+
 #function to multiprocess
 def process_function(cmd,weight_dict,sample_id):
     #Create dictionary to keep track of total scores per person, set initial value to zero
     sample_score_dict = {x:0 for x in sample_id}
     marker_count=0
     f = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    f = f.communicate()[0]
-    test_results=[]
-    if f!="": #if tabix query finds at  least one of  the  risk variants in that chunk
+    f = f.communicate()[0]  # TODO: rename `f` to something more descriptive
+    test_results=[] # TODO: define a class for the test results
+                     # to improve readability & ease of parsing tabix results
+    if f:
         for line in f.rstrip().split("\n"):
             if line.split()[0][0] != "#":
                 coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]
-                alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order 
+                alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order
                 if coord in weight_dict:
                     test_results.append(flatten((weight_dict[coord][0], weight_dict[coord][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])))
                 elif alt_coord in weight_dict:
@@ -268,18 +269,18 @@ def process_function(cmd,weight_dict,sample_id):
     matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
     #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
     matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
-         
+
     #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
-    # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
+    # TODO: check before subtracting from 2 to flip it because currently assumes autosome VCF only
     matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
     matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
 
     #Sum down columns
     dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
-    for x in range(len(dosage_scores_sum)):
-        sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
-        
-    sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF 
+    sample_score_dict = {sample_id[x]: score
+                         for x, score in enumerate(dosage_scores_sum)}
+
+    sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF
 
     return(sample_score_dict)
 
@@ -301,7 +302,7 @@ def main():
 
     if args.vcf_chrom is not None:
          print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  args.vcf_chrom
-        
+
     #open ID file
     #Assumes order in VCF is the same across everything provided
     with open(args.id_file) as f:
@@ -309,8 +310,8 @@ def main():
 
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
-    
-    #Write out regions file for tabix using dictionary and chunk parameter 
+
+    #Write out regions file for tabix using dictionary and chunk parameter
     #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
     tmpFileNames,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk,args.chunk)
 
@@ -320,10 +321,10 @@ def main():
     elif args.single_vcf is not None:
         vcf_list = [args.single_vcf]
 
-    #Calculate weighted dosages per individual, Make sure to check allele, print output 
+    #Calculate weighted dosages per individual, Make sure to check allele, print output
     getDosage(tmpFileNames,args.tabix,vcf_list,args.cpu,weight_dict,sample_id,args.output_prefix)
-        
-        
+
+
     #record the number of markers actually found and included because risk marker list may differ from variants in data of interest
  #   variant_count=0
     #loop over VCFs
@@ -346,24 +347,24 @@ def main():
            # print(test_results)
             #if (np.shape(test_results)[0] == 1):
             #    test_results = np.vstack(test_results, np.zeros(np.shape(test_results))
-            #Assumes DS in VCF is in terms of the alternate allele 
+            #Assumes DS in VCF is in terms of the alternate allele
             #Where effect allele from risk score formula matches alternative allele, multiply directly
             #matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
             #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
             #matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
-            
+
             #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
             # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
             #matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
             #matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
-            
+
             #Sum down columns
             #dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
             #for x in range(len(dosage_scores_sum)):
             #    sample_score_dict[sample_id[x]] = sample_score_dict[sample_id[x]] + dosage_scores_sum[x]
 
 #    print >> sys.stderr, "%d variants were in the region file and %d were ultimately found in the VCF(s)"  % (region_count,variant_count)
-    
+
  #   with open(args.output_file, 'w') as out:
   #      out.write("%s\t%s\n" % ("individual", "score"))
    #     for x in range(len(sample_id)):
@@ -372,7 +373,7 @@ def main():
     #delete temporary region files
     for filename in tmpFileNames:
         os.remove(filename)
-    
-##### Call main 
+
+##### Call main
 if __name__ == "__main__":
         main()
