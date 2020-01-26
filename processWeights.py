@@ -146,6 +146,8 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num):
                     if chrom_num is not None:
                         if lineList[coord].split(":")[0]==chrom_num: #only save info for chromosome of interest
                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
+                    else:
+                        weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
                 else:  #dont need an else condition because of argument check
                     continue
     return weight_dict
