@@ -167,7 +167,7 @@ def make_regions_file(weight_dict, output_name,chunk,chunkTF,chrom_num):
     sys.stderr.write("Writing %d files for marker regions\n" % num_files)
     file_list=[]
     for i in range(num_files):
-        output="_".join(["".join([output_name,"chrom",str(chrom_num)]),"".join(["chunk",str(i)])])
+        output="_".join(["".join([output_name,"chrom",str(chrom_num)]),"".join(["chunk",str(i),".txt"])])
         file_list.append(output)
         with open(output, 'w') as ofile:
             for coord in weight_dict.keys()[i*chunk:(i+1)*chunk]:
