@@ -108,7 +108,9 @@ def get_settings():
 
 #open files
 def open_zip(f):
-    if ".gz" in f:
+    if f is None:
+                 print >> sys.stderr, "File was not given as parameter\n"
+    elif ".gz" in f:
         command=gzip.open(f,"rt")
         print >> sys.stderrr, "Opening gzipped file %s\n" % f
     elif f == "-":
@@ -150,20 +152,21 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num):
 
 
 #write out regions file to use with tabix, gets coordinates from weights file
-def make_regions_file(weight_dict, output_name,chunk,chunkTF,chrom_num):
+def make_regions_file(weight_dict, output_name,chunk,chunkTF,file_chunk,chrom_num):
     number_markers=len(weight_dict.keys())
-    if chrom_num is None:
-        chrom_num="all"
-    if chunkTF is False:
+    if chrom_num is None: #will need something for output name eventually
+        chrom_num="NA"
+    if chunkTF is False: #not going to chunk
         num_files=1
         chunk=number_markers
-        sys.stderr.write("--chunk flag should be provided if weight markers are to be chunked into multiple tabix processes. --num_chunk is being ignored if provided. \n")
+        sys.stderr.write("--chunk flag should be provided if weight markers are to be chunked into multiple tabix processes. --num_chunk or --file_chunk is being ignored if provided. \n")
     elif int(math.ceil(number_markers / chunk)) == 1: #chunk value >= than markers
         num_files=1
         chunk=number_markers
         sys.stderr.write("--num_chunk parameter is greater than or equal to the number of markers. May want to consider a more appropriate parameter.\n")
     else:
         num_files=int(math.ceil(number_markers / chunk))
+
     sys.stderr.write("Writing %d files for marker regions\n" % num_files)
     file_list=[]
     for i in range(num_files):
@@ -176,7 +179,6 @@ def make_regions_file(weight_dict, output_name,chunk,chunkTF,chrom_num):
     return file_list,number_markers
 
 
-
 #########################
 ########## MAIN #########
 #########################
@@ -186,18 +188,15 @@ def main():
     #get arguments
     args=get_settings()
 
-
     if args.chrom is not None:
          print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  args.chrom
         
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.chrom)
     
-    #Write out regions file for tabix using dictionary and chunk parameter 
-    #regions_output_name = "Regions_" + str(args.vcf_chrom) + "_" +  args.weight_file.split("/")[-1]
+    #Write out regions file for tabix using dictionary and chunk parameters
     file_names,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk,args.chunk,args.chrom)
-    print(file_names)
-    print(num_markers)
+
 ##### Call main 
 if __name__ == "__main__":
         main()
