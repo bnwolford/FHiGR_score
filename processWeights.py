@@ -152,7 +152,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num):
 
 
 #write out regions file to use with tabix, gets coordinates from weights file
-def make_regions_file(weight_dict, output_name,chunk,chunkTF,file_chunk,chrom_num):
+def make_regions_file(weight_dict, output_name,chunk,chunkTF,chrom_num):
     number_markers=len(weight_dict.keys())
     if chrom_num is None: #will need something for output name eventually
         chrom_num="NA"
@@ -170,7 +170,7 @@ def make_regions_file(weight_dict, output_name,chunk,chunkTF,file_chunk,chrom_nu
     sys.stderr.write("Writing %d files for marker regions\n" % num_files)
     file_list=[]
     for i in range(num_files):
-        output="_".join(["".join([output_name,"chrom",str(chrom_num)]),"".join(["chunk",str(i),".txt"])])
+        output="_".join([output_name,"".join(["chrom",str(chrom_num)]),"".join(["chunk",str(i),".txt"])])
         file_list.append(output)
         with open(output, 'w') as ofile:
             for coord in weight_dict.keys()[i*chunk:(i+1)*chunk]:
