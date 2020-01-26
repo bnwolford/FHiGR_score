@@ -78,8 +78,8 @@ def get_settings():
     parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
     parser.add_argument("-k","--chunk",help="Split weights file into -n number of markers. If this is not used and many markers are in -w, the process is quite memory intensive",action="store_true")
     parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
-    parser.add_argument('-m', '--multi_vcf', nargs='*')
-    parser.add_argument('-v', '--single_vcf')
+    parser.add_argument('-m', '--multi_vcf', help="Path to VCFs with * for chromosome wildcard. Expects GT:DS",nargs='*')
+    parser.add_argument('-v', '--single_vcf',help="Path to VCF. Expects GT:DS")
     parser.add_argument("-c","--vcf_chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
     parser.add_argument('-i', '--id_file', default="/net/fantasia/home/sarahgra/Collaborator_projects/PRS_prediction_Cristen/MGI_sample_IDs")
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
@@ -228,7 +228,6 @@ def getDosage(tmpFileNames,tabix_path,vcf_list,cpu,weight_dict,sample_id,output)
     #merge all the dosages 
     sys.stderr.write("Merging per sample scores across chunked regions and VCF(s)\n")
     c=Counter() #initialize counter
-    print(type(results_list))
     for dictionaries in results_list.get():
         c.update(dictionaries) #sum across all the dictionaries 
     print >> sys.stderr, "%d variants were in the region file(s) and %d were ultimately found in the VCF(s)"  % (len(weight_dict),c["count"])
