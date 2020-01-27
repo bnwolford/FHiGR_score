@@ -182,7 +182,7 @@ def make_regions_file(weight_dict, output_name,chunk,chunkTF):
     if chunkTF is False:
         num_files=1
         chunk=number_markers
-        sys.stderr.write("--chunk flag should be provided if weight markers are to be chunked into multiple tabix processes\n")
+        sys.stderr.write("--chunk flag should be provided if weight markers are to be chunked into multiple tabix processes. --num_chunk is being ignored if provided. \n")
     elif int(math.ceil(number_markers / chunk)) == 1: #chunk value >= than markers
         num_files=1
         chunk=number_markers
