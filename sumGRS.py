@@ -161,7 +161,7 @@ def output(o,d,list_size,inorm):
 
     outname=".".join([o,"txt"])
     out_file=open(outname,"w")
-    if inorm:
+    if inorm is True:
         #initialize lists for inorm
         GRS_list=[]
         id_list=[]
@@ -175,7 +175,7 @@ def output(o,d,list_size,inorm):
             print >> sys.stderr, "%s does not have expected number (%d) of sub-chunks to sum\n"  % (ids,list_size)
         GRS=sum(float(sub_sum) for sub_sum in d[ids])
         #if we want to inverse normalize just save data to ordered lists
-        if inorm:
+       if inorm is True:
             GRS_list.append(GRS)
             id_list.append(ids)
         #otherwise write to file
@@ -186,7 +186,7 @@ def output(o,d,list_size,inorm):
             else:
                  out_file.write("\t".join([ids,ids,str(GRS)])+"\n")
     #now we inverse normalize and write out data using lists 
-    if inorm:
+    if inorm is True:
         trans_GRS_list=rank_INT(GRS_list)
         for i in range(len(trans_GRS_list)):
             if "." in ids[0]: #if this script created FID.IID
