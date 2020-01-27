@@ -173,23 +173,29 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
 
 def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
     print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
-    cmd=[tabix_path, '-R',region_file , vcf]
+    #cmd=[tabix_path, '-R',region_file , vcf]
+    cmd=["/usr/local/bin/bcftools","query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
     marker_count=0
     test_results=[]
     try:
         f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         with f.stdout:
             for line in iter(f.stdout.readline,b''):
-                line=line.rstrip()
-                if line.split()[0][0] != "#":
-                    coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[3] + ":" + line.split()[4]
-                    alt_coord=line.split()[0] + ":" + line.split()[1] + ":" + line.split()[4] + ":" + line.split()[3] #flip ref and alt in case weight file is in that order
+                ls=line.split()
+                ls[-1]=ls[-1].rstrip()
+                #print(ls)
+                if ls[0] != "#":
+                    coord=ls[0] + ":" + ls[1] + ":" + ls[3] + ":" + ls[4]
+                    alt_coord=ls[0] + ":" + ls[1] + ":" + ls[4] + ":" + ls[3] #flip ref and alt in case weight file is in that order
                 
                     if coord in weight_dict:
-                        test_results.append(flatten((weight_dict[coord][0], weight_dict[coord][1], line.rstrip().split()[0:5], [value.split(":")[1] for value in line.rstrip().split()[9:]])))
+                        #test_results.append(flatten((weight_dict[coord][0], weight_dict[coord][1], ls[0:5], [value.split(":")[1] for value in ls[9:]])))
+                        test_results.append(flatten((weight_dict[coord][0],weight_dict[coord][1], ls))) 
                     elif alt_coord in weight_dict:
-                        test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], line.rstrip().split()[0:5],[value.split(":")[1] for value in line.rstrip().split()[9:]])))
+                        #test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], ls[0:5],[value.split(":")[1] for value in ls[9:]])))
+                        test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1],ls)))
         test_results=np.asarray(test_results)
+        #print(test_results)
         #print(len(test_results))
         #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
         #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
@@ -221,9 +227,7 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
     except KeyboardInterrupt:
         print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
         sys.exit("Exiting program\n")
-        
-    #merge all the dosages 
-    sys.stderr.write("Merging per sample scores across VCF(s)\n")
+
     #write output file
     outputname=output + "_" + "scores.txt"
     print >> sys.stderr, "Writing output file %s \n" % (outputname)
