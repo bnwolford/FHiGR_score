@@ -40,20 +40,15 @@ def get_settings():
 ###############################
 
 def open_zip(f):
-    exists=os.path.isfile(f)
-    if exists:
         if ".gz" in f:
             command=gzip.open(f,"rt")
             print >> sys.stderrr, "Opening gzipped file %s\n" % f
         elif f == "-":
-            sys.exit("Cannot read file from stdin\n")
+            command=sys.stdin()
         else:
             command=open(f,"rt")
             print >> sys.stderr, "Opening file %s\n" % f
         return command
-    else:
-        print >> sys.stderr, "%s does not exist\n" %f
-        return 0
 
 def check(config):
     """
@@ -118,18 +113,17 @@ def merge(fl,sl):
     for gen in fl:
         command=open_zip(gen)
         count=0
-        if command!=0: #if file exists
-            with command as f:
-                for line in f:
-                    if count==0: #skip 1 line header
-                        count+=1
-                        next
-                    else:
-                        ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
-                        lineList=ls.split(" ")
-                        ids=".".join(lineList[0:2])
-                        if ids in ddict.keys():
-                            ddict[ids].append(lineList[2])
+        with command as f:
+            for line in f:
+                if count==0: #skip 1 line header
+                    count+=1
+                    next
+                else:
+                    ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
+                    lineList=ls.split(" ")
+                    ids=".".join(lineList[0:2])
+                    if ids in ddict:
+                        ddict[ids].append(lineList[2])
                         
     return(ddict)
 
@@ -139,24 +133,25 @@ def merge_custom(fl,sl,id_col,score_col,header):
     Looks at all files matching the string given. Returns dictionary with the id and score information.
     """
     ddict={} #initialize dictionary
-    for sample in sl:
-        ddict[sample]=[] #initialize list
-
     for score_file in fl:
         command=open_zip(score_file)
         count=0
-        if command!=0:
-            with command as f:
-                for line in f:
-                    if header is True and count==0: #skip 1 line header
-                        count+=1
-                        next
+        with command as f:
+            for line in f:
+                if header is True and count==0: #skip 1 line header
+                    count+=1
+                else:
+                    ls=line.rstrip()
+                    lineList=ls.split()
+                    sample_id=lineList[id_col]
+                    if sample_id in ddict:
+                        #ddict[sample_id]=ddict[sample_id]+float(lineList[score_col])
+                        ddict[sample_id].append(lineList[score_col])
                     else:
-                        ls=line.rstrip()
-                        lineList=ls.split()
-                        sample_id=lineList[id_col]
-                        if sample_id in ddict.keys():
-                            ddict[sample_id].append(lineList[score_col])
+                        #ddict[sample_id]=float(lineList[score_col])
+                        ddict[sample_id]=[lineList[score_col]]
+        f.close()
+
     return(ddict)
                         
 
@@ -268,6 +263,7 @@ def main():
     elif args.sample_file is not None:
         sample_list=read_sample(args.sample_file)
 
+    
     #merge data assuming FID, IID, score or a custom score results file 
     if (args.score_column is not None and args.id_column is not None):
         data=merge_custom(file_list,sample_list,args.id_column,args.score_column,args.header) #provide custom columns
