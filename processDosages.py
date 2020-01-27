@@ -190,7 +190,7 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
                     elif alt_coord in weight_dict:
                         test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], line.rstrip().split()[0:5],[value.split(":")[1] for value in line.rstrip().split()[9:]])))
         test_results=np.asarray(test_results)
-        print(len(test_results))
+        #print(len(test_results))
         #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
         #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
         marker_count+=len(test_results)
@@ -213,15 +213,15 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
 
         #Sum down columns
         dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
-        print(len(dosage_scores_sum))
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
-
         sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF
 
+        f.wait()
         
     except KeyboardInterrupt:
         print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
         sys.exit("Exiting program\n")
+        
     #merge all the dosages 
     sys.stderr.write("Merging per sample scores across VCF(s)\n")
     #write output file
@@ -232,6 +232,17 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
         for x in range(len(sample_id)):
             out.write("%s\t%.8f\n" % (sample_id[x], sample_score_dict[sample_id[x]]))
 
+##handle situation if there are empty weights to avoid weird key error problem
+def empty_weights(sample_id,output):
+    outputname=output + "_" + "scores.txt"
+    print >> sys.stderr, "Writing output file %s \n" % (outputname)
+    with open(outputname, 'w') as out:
+        out.write("%s\t%s\n" % ("individual", "score"))
+        for x in range(len(sample_id)):
+            out.write("%s\t%.8f\n" % (sample_id[x], 0))
+    out.close()
+    sys.exit()
+    
 #########################
 ########## MAIN #########
 #########################
@@ -251,6 +262,9 @@ def main():
 
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
+    if len(weight_dict.keys())==0:
+        print >> sys.stderr, "No markers in this weight file %s\n" % args.weight_file
+        empty_weights(sample_id,args.output_prefix)
     
     #Calculate weighted dosages per individual, Make sure to check allele, print output 
     getDosage(args.region_file,args.tabix,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
