@@ -125,22 +125,6 @@ def open_zip(f):
     return command
                             
 
-#flatten nested lists
-def flatten(l, ltypes=(list, tuple)):
-    ltype = type(l)
-    l = list(l)
-    i = 0
-    while i < len(l):
-        while isinstance(l[i], ltypes):
-            if not l[i]:
-                l.pop(i)
-                i -= 1
-                break
-            else:
-                l[i:i + 1] = l[i]
-        i += 1
-    return ltype(l)
-            
 #create dictionary of weight per variant
 #@profile
 def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
@@ -197,7 +181,7 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
     #To do: could auto make a matrix and fill it with dosages to be more efficient?
     marker_count=0
     weight_list=np.full(max_marker,np.nan) #initialize numpy array of nan
-    query_list=[]
+    query_results=[]
     try:
         f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         with f.stdout:
