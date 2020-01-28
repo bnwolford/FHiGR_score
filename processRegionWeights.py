@@ -68,7 +68,8 @@ for module in sys.modules:
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
     parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arguments. Genom wide")
-    parser.add_argument("-f",'--chunk_file',default="/net/dumbo/home/larsf/UKB500/VCF/Chunks_250k.txt",help="Genome wide coordinates from chunking that we want to chunk even further")
+    parser.add_argument("-f",'--chunk_file',default="/net/dumbo/home/larsf/UKB500/VCF/Chunks_250k.txt",help="File with relevant information about chunked VCFs so we can make weight files and region files corresponding to the chunked VCFs. First 3 columns must be chr, start, end.")
+    parser.add_argument("-xc","--prefix_col",help="0-based column with prefix for the chunk from the --chunk_file",default=7)
     parser.add_argument("-cc","--chrom_col",help="0-based column with chromosome in file",type=int)
     parser.add_argument("-pc","--pos_col",help="0-based column with end position of variant in weight file",type=int)
     parser.add_argument("-dc","--coord_col",help="0-based column with chromosome:position:ref:alt of variant in weight file", type=int)
@@ -117,7 +118,7 @@ def open_zip(f):
                             
 def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight):
     """
-    Read file with weights into dictionary and regions files for tabix.
+    Read file with weights into dictionary.
     """
     weight_dict=OrderedDict()
     command=open_zip(weight_file)
@@ -138,7 +139,8 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight):
                     continue
     return weight_dict
 
-def read_chunks(chunk_file):
+def read_chunks(chunk_file,prefix_col):
+    """Read in chunk file"""
     chunk_list=[]
     command=open_zip(chunk_file)
     with command as f:
@@ -146,19 +148,19 @@ def read_chunks(chunk_file):
             ls=line.rstrip()
             if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit, also ignores sex chrom
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
-                chunk_list.append(":".join([lineList[0],lineList[1],lineList[2],lineList[7]])) #chr:start:end:prefix
+                chunk_list.append(":".join([lineList[0],lineList[1],lineList[2],lineList[prefix_col]])) #chr:start:end:prefix
 
     return(chunk_list)
 
 def  make_regions(weight_dict,chunk_list,output_prefix,num_chunk):
+    """ Make a region files using weights and known chunks """
     total=len(weight_dict.keys())
     #open config file
     config="_".join([output_prefix,"config.txt"])
     cfile=open(config,'w+')
     for mega_chunk in chunk_list:
-        print(mega_chunk)
         chunk_chrom,chunk_start,chunk_end,prefix=mega_chunk.split(":")
-        vcf="".join(["/net/dumbo/home/larsf/UKB500/VCF/ukb24460_imp_",prefix,"_v3_s486743.vcf.gz"])
+        vcf="".join(["/net/dumbo/home/larsf/UKB500/VCF/ukb24460_imp_",prefix,"_v3_s486743.vcf.gz"]) #need to generalize
         mini_chunk_counter=0
         marker_counter=0
         in_mega=True
@@ -209,11 +211,13 @@ def main():
     #get arguments
     args=get_settings()
 
+    print >> sys.stderr, "Not generalized yet. The VCF path printing to config file is hardcoded\n")
+    
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col)
 
     #chr     start   end     N       chunk   bgen    sample  prefi
-    chunk_list=read_chunks(args.chunk_file)
+    chunk_list=read_chunks(args.chunk_file.args.prefix_col)
 
     #write regions and config file
     make_regions(weight_dict,chunk_list,args.output_prefix,args.num_chunk)
