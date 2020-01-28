@@ -209,24 +209,19 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
                     alt_coord=ls[0] + ":" + ls[1] + ":" + ls[4] + ":" + ls[3] #flip ref and alt in case weight file is in that order
                     if coord in weight_dict:
                         marker_line=checkAllele(weight_dict[coord][0],ls) #returns numpy array of dosages
+                        print(sum(marker_line))
                         if marker_line.any() != None:
                             test_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[coord][1]
                             marker_count+=1
                     elif alt_coord in weight_dict:
                         marker_line=checkAllele(weight_dict[alt_coord][0],ls) #returns numpy array of dosages
+                        print(sum(marker_line))
                         if marker_line.any() != None:
                             test_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[alt_coord][1]
                             marker_count+=1
-                            #print(np.shape(test_results[0]))
-                            #print(sys.getsizeof(test_results))
-                            #print(test_results)
-                            #print(type(test_results))
-                            #print(len(test_results))
-                print(sys.getsizeof(test_results))
         test_results=np.vstack(test_results) #turn list of numpy arrays into 2D array
-  #      print(test_results.itemsize*test_results.size)
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
         dosage_scores_sum=np.sum(test_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
