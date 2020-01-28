@@ -173,7 +173,9 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                     continue
     return weight_dict
 
+
 def checkAllele(weight_allele, marker_line):
+    """ Converts dosages to the appropriate allele that the weight is in terms of """
     #marker line is chr, pos, snpid, ref, alt, dosages for all samples
     ref=marker_line[3]
     alt=marker_line[4]
@@ -185,12 +187,14 @@ def checkAllele(weight_allele, marker_line):
         print >> sys.stderr("Marker %s alleles do not match either ref or alt from VCF\n") % marker
         return np.array(None)
     
-@profile
+#@profile
 def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
-    print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
+    # print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
     #cmd=[tabix_path, '-R',region_file , vcf]
+    print >> sys.stderr, "Calling bcftools query with  %s to subset markers from  %s\n" % (vcf,region_file)
     cmd=["/usr/local/bin/bcftools","query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
     max_marker=len(weight_dict) #max  number of markers from weight dictionary, could use to make numpy array/matrix
+    #To do: could auto make a matrix and fill it with dosages to be more efficient?
     marker_count=0
     test_results=[]
     weight_list=np.full(max_marker,np.nan) #initialize numpy array of nan
@@ -215,12 +219,18 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
                             test_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[alt_coord][1]
                             marker_count+=1
-        test_results=np.stack(test_results) #turn list of numpy arrays into 2D array
+                            #print(np.shape(test_results[0]))
+                            #print(sys.getsizeof(test_results))
+                            #print(test_results)
+                            #print(type(test_results))
+                            #print(len(test_results))
+                print(sys.getsizeof(test_results))
+        test_results=np.vstack(test_results) #turn list of numpy arrays into 2D array
+  #      print(test_results.itemsize*test_results.size)
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
         dosage_scores_sum=np.sum(test_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
-        sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF
-
+        print >> sys.stderr, "%d of %d markers in the weight file found in VCF\n" % (marker_count,max_marker)
         #f.wait()
         
     except KeyboardInterrupt:
