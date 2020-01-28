@@ -239,7 +239,7 @@ def empty_weights(sample_id,output):
 #########################
 ########## MAIN #########
 #########################
-@profile
+#@profile
 def main():
 
     #get arguments
