@@ -30,6 +30,7 @@
 ###########################
 
 from __future__ import division
+from memory_profiler import profile
 import argparse
 import subprocess
 import gzip
@@ -141,6 +142,7 @@ def flatten(l, ltypes=(list, tuple)):
     return ltype(l)
             
 #create dictionary of weight per variant
+#@profile
 def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
     """
     Read file with weights into dictionary and regions files for tabix.
@@ -171,61 +173,58 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                     continue
     return weight_dict
 
+def checkAllele(weight_allele, marker_line):
+    #marker line is chr, pos, snpid, ref, alt, dosages for all samples
+    ref=marker_line[3]
+    alt=marker_line[4]
+    if weight_allele is ref: #dosage from VCF in terms of alternate allele so we need to flip the dosages
+        return 2-np.array(marker_line[5:], dtype=np.float32)
+    elif weight_allele is alt:
+        return np.array(marker_line[5:], dtype=np.float32)
+    else:
+        print >> sys.stderr("Marker %s alleles do not match either ref or alt from VCF\n") % marker
+        return np.array(None)
+    
+@profile
 def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
     print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
     #cmd=[tabix_path, '-R',region_file , vcf]
     cmd=["/usr/local/bin/bcftools","query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
+    max_marker=len(weight_dict) #max  number of markers from weight dictionary, could use to make numpy array/matrix
     marker_count=0
     test_results=[]
+    weight_list=np.full(max_marker,np.nan) #initialize numpy array of nan
     try:
         f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         with f.stdout:
             for line in iter(f.stdout.readline,b''):
                 ls=line.split()
                 ls[-1]=ls[-1].rstrip()
-                #print(ls)
-                if ls[0] != "#":
+                if ls[0] != "#": #ignore header lines
                     coord=ls[0] + ":" + ls[1] + ":" + ls[3] + ":" + ls[4]
                     alt_coord=ls[0] + ":" + ls[1] + ":" + ls[4] + ":" + ls[3] #flip ref and alt in case weight file is in that order
-                
                     if coord in weight_dict:
-                        #test_results.append(flatten((weight_dict[coord][0], weight_dict[coord][1], ls[0:5], [value.split(":")[1] for value in ls[9:]])))
-                        test_results.append(flatten((weight_dict[coord][0],weight_dict[coord][1], ls))) 
+                        marker_line=checkAllele(weight_dict[coord][0],ls) #returns numpy array of dosages
+                        if marker_line.any() != None:
+                            test_results.append(marker_line)
+                            weight_list[marker_count]=weight_dict[coord][1]
+                            marker_count+=1
                     elif alt_coord in weight_dict:
-                        #test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1], ls[0:5],[value.split(":")[1] for value in ls[9:]])))
-                        test_results.append(flatten((weight_dict[alt_coord][0], weight_dict[alt_coord][1],ls)))
-        test_results=np.asarray(test_results)
-        #print(test_results)
-        #print(len(test_results))
-        #Format of test_results is: effect allele, effect, chr, pos, variant_id, ref, alt, dosage*n_samples
-        #G 0.2341 22 16050075 rs587697622 A G 0 0 0 0....
-        marker_count+=len(test_results)
-        if (np.shape(test_results)[0] == 1):  #if just 1 row (i.e. 1 marker)
-            #print(np.shape(test_results))
-            test_results = np.vstack((test_results, np.zeros(np.shape(test_results))))
-        elif (np.shape(test_results)[0]==0): #if no rows (i.e. 0 markers)
-            #assumes length of sample ID is samples we are pulling from VCF when test_results is successful
-            test_results = np.vstack((np.zeros(len(sample_id)),np.zeros(len(sample_id))))
-            #Assumes DS in VCF is in terms of the alternate allele
-            #Where effect allele from risk score formula matches alternative allele (column 6), multiply directly
-        matching_effect_allele = test_results[np.where(test_results[:,0] == test_results[:,6])]
-        #[:, np.newaxis] this is needed to do the multipication element wise (first column * all dosages in row)
-        matching_effect_allele = matching_effect_allele[:,1].astype(float)[:, np.newaxis] * matching_effect_allele[:,7:].astype(float)
-
-        #Where effect allele matches reference allele, take 2-dosage, then multiply (so flip dosage to be for alternative allele)
-        # To Do: check before subtracting from 2 to flip it because currently assumes autosome VCF only
-        matching_reference_allele = test_results[np.where(test_results[:,0] == test_results[:,5])]
-        matching_reference_allele = matching_reference_allele[:,1].astype(float)[:, np.newaxis] * (2 - matching_reference_allele[:,7:].astype(float))
-
-        #Sum down columns
-        dosage_scores_sum = np.sum(matching_reference_allele, axis=0) + np.sum(matching_effect_allele, axis=0)
+                        marker_line=checkAllele(weight_dict[alt_coord][0],ls) #returns numpy array of dosages
+                        if marker_line.any() != None:
+                            test_results.append(marker_line)
+                            weight_list[marker_count]=weight_dict[alt_coord][1]
+                            marker_count+=1
+        test_results=np.stack(test_results) #turn list of numpy arrays into 2D array
+        weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
+        dosage_scores_sum=np.sum(test_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
         sample_score_dict["count"]=marker_count #record number of markers from weights that are present in the VCF
 
-        f.wait()
+        #f.wait()
         
     except KeyboardInterrupt:
-        print >> sys.stderr, "Caught KeyboardInterrupt, terminating multiprocesses\n"
+        print >> sys.stderr, "Caught KeyboardInterrupt.\n"
         sys.exit("Exiting program\n")
 
     #write output file
@@ -264,16 +263,18 @@ def main():
     with open(args.id_file) as f:
         sample_id = [line.rstrip() for line in f]
 
+
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
     if len(weight_dict.keys())==0:
         print >> sys.stderr, "No markers in this weight file %s\n" % args.weight_file
         empty_weights(sample_id,args.output_prefix)
-    
+
     #Calculate weighted dosages per individual, Make sure to check allele, print output 
     getDosage(args.region_file,args.tabix,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
         
         
-##### Call main 
+##### Call main
+
 if __name__ == "__main__":
         main()
