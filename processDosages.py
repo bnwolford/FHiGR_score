@@ -196,8 +196,8 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
     max_marker=len(weight_dict) #max  number of markers from weight dictionary, could use to make numpy array/matrix
     #To do: could auto make a matrix and fill it with dosages to be more efficient?
     marker_count=0
-    test_results=[]
     weight_list=np.full(max_marker,np.nan) #initialize numpy array of nan
+    query_list=[]
     try:
         f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         with f.stdout:
@@ -209,21 +209,22 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
                     alt_coord=ls[0] + ":" + ls[1] + ":" + ls[4] + ":" + ls[3] #flip ref and alt in case weight file is in that order
                     if coord in weight_dict:
                         marker_line=checkAllele(weight_dict[coord][0],ls) #returns numpy array of dosages
-                        print(sum(marker_line))
                         if marker_line.any() != None:
-                            test_results.append(marker_line)
+                            query_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[coord][1]
                             marker_count+=1
                     elif alt_coord in weight_dict:
                         marker_line=checkAllele(weight_dict[alt_coord][0],ls) #returns numpy array of dosages
-                        print(sum(marker_line))
                         if marker_line.any() != None:
-                            test_results.append(marker_line)
+                            query_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[alt_coord][1]
                             marker_count+=1
-        test_results=np.vstack(test_results) #turn list of numpy arrays into 2D array
+                    else:
+                        print >> sys.stderr, "Neither %s or %s are in the weight file but are present in the region file\n" % (coord,alt_coord)
+        #To do: could do the multiplication and sum to per-sample scores each time rather that saving to query_list
+        query_results=np.vstack(query_results) #turn list of numpy arrays into 2D array
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
-        dosage_scores_sum=np.sum(test_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
+        dosage_scores_sum=np.sum(query_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
         print >> sys.stderr, "%d of %d markers in the weight file found in VCF\n" % (marker_count,max_marker)
         #f.wait()
@@ -254,7 +255,7 @@ def empty_weights(sample_id,output):
 #########################
 ########## MAIN #########
 #########################
-
+@profile
 def main():
 
     #get arguments
@@ -280,6 +281,5 @@ def main():
         
         
 ##### Call main
-
 if __name__ == "__main__":
         main()
