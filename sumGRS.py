@@ -175,7 +175,7 @@ def output(o,d,list_size,inorm):
             print >> sys.stderr, "%s does not have expected number (%d) of sub-chunks to sum\n"  % (ids,list_size)
         GRS=sum(float(sub_sum) for sub_sum in d[ids])
         #if we want to inverse normalize just save data to ordered lists
-       if inorm is True:
+        if inorm is True:
             GRS_list.append(GRS)
             id_list.append(ids)
         #otherwise write to file
