@@ -86,48 +86,54 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
   if (!sum(unique(df[[strat_col]])==c(0,1))==2) {
     print("Stratum column must be a binary variable. Expects 0 and 1.")
   }
-  if (!sum(unique(df[[prev_col]])==c(0,1))==2) {
-    print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
+  pheno_vals<-df[!is.na(df[[prev_col]])][[prev_col]]
+  if (!sum(unique(pheno_vals)==c(0,1))==2) {
+      print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
   }
   if (sum(qtile)<2*length(qtile)){ #check qtile
-    print("q-quantiles should be number of divisions for data set and must be greater than 1")
-  } 
-  #initialize data structures
+      print("q-quantiles should be number of divisions for data set and must be greater than 1")
+  }
+  ## initialize data structures 
   p<-(100/qtile)/100
   index<-c(seq(from=0,to=1,by=p)*100)
   prevalences<-matrix(NA,2,qtile+1) #initialize prevalence matrix
   ns<-matrix(NA,2,qtile+1) #initialize count matrix
   ses<-matrix(NA,2,qtile+1)#initialize se matrix
+  ts<-matrix(NA,2,qtile+1) #initialize tiles matrix
   
   if (qfirst==TRUE){ #calculate quantiles before stratification
     tiles<-quantile(df[[GRS_col]],seq(from=0,to=1,by=p)) #quantile values
     for (i in 1:length(index)-1) {
-      for (r in c(1,2)){ #iterate over stratum
-        prev_list<-df[df[[GRS_col]] > tiles[i] & df[[GRS_col]] <= tiles[i+1] & df[[strat_col]]==(r-1)][[prev_col]]
-        prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
-        ns[r,i]<-length(prev_list)
-        ses[r,i]<-sqrt((prevalences[r,i]*(1-prevalences[r,i]))/length(prev_list)) #what is SE for this prevalence
-      }
+        for (r in c(1,2)){ #iterate over stratum
+            percents<-names(tiles)
+            ts[r,]<-tiles
+            prev_list<-df[df[[GRS_col]] > tiles[i] & df[[GRS_col]] <= tiles[i+1] & df[[strat_col]]==(r-1)][[prev_col]]
+            prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
+            ns[r,i]<-length(prev_list)
+            ses[r,i]<-sqrt((prevalences[r,i]*(1-prevalences[r,i]))/length(prev_list)) #what is SE for this prevalence
+        }
     }
   } else { #stratify before calculating quantiles
-    for (r in c(1,2)){ #iterate over stratum
-      sdf<-df[df[[strat_col]]==(r-1),] #make data set for one stratum
-      tiles<-quantile(sdf[[GRS_col]],seq(from=0,to=1,by=p)) #quantile values
-      for (i in 1:length(index)-1) {
-        prev_list<-sdf[sdf[[GRS_col]] > tiles[i] & sdf[[GRS_col]] <= tiles[i+1]][[prev_col]]
-        prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
-        ns[r,i]<-length(prev_list)
-        ses[r,i]<-sqrt((prevalences[r,i]*(1-prevalences[r,i]))/length(prev_list)) #what is SE for this prevalence
-      } 
-    }
+      for (r in c(1,2)){ #iterate over stratum
+          sdf<-df[df[[strat_col]]==(r-1),] #make data set for one stratum
+          tiles<-quantile(sdf[[GRS_col]],seq(from=0,to=1,by=p)) #quantile values
+          ts[r,]<-tiles
+          percents<-names(tiles)
+          for (i in 1:length(index)-1) {
+              prev_list<-sdf[sdf[[GRS_col]] > tiles[i] & sdf[[GRS_col]] <= tiles[i+1]][[prev_col]]
+              prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
+              ns[r,i]<-length(prev_list)
+              ses[r,i]<-sqrt((prevalences[r,i]*(1-prevalences[r,i]))/length(prev_list)) #what is SE for this prevalence
+          } 
+      }
   }
-
+  
   ##fix any NaN which arise due to no cases in a bin
   prevalences[is.nan(prevalences)]<-0
   ses[is.nan(ses)]<-0
   ns[is.nan(ns)]<-0
   ##create object 
-  pqs<-list(prev=prevalences,se=ses,i=index,n=ns,tiles=tiles)
+  pqs<-list(prev=prevalences,se=ses,i=index,n=ns,tiles=ts,percents=percents)
   class(pqs)<-"prev_quantile_stratum_obj"
   return(pqs)
 }
@@ -136,7 +142,8 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
 ##returns object with prevalences and standard error for distribution
 ##does not stratify
 prev_per_quantile<-function(df,GRS_col,prev_col,qtile){
-    if (!sum(unique(df[[prev_col]])==c(0,1))==2) {
+    pheno_vals<-df[!is.na(df[[prev_col]])][[prev_col]]
+    if (!sum(unique(pheno_vals)==c(0,1))==2) {
         print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
     }
     if (sum(qtile)<2*length(qtile)){ #check qtile
@@ -170,13 +177,12 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
     dat<-dat[dat$frac!=1.00,]
     dat$ub<-dat$prev+(1.96*dat$se)
     dat$lb<-dat$prev-(1.96*dat$se)
-
     if (ymax==1){ # if ymax is not given to function, just plot to scale of data, otherwise, script can be given custom ymax to match scale of another plot
         ymax=max(dat$prev)
     }
 
     if (stratum==TRUE){ #stratify
-        dat$stratum<-as.factor(dat$stratum)
+        dat$stratum<-as.factor(as.character(dat$stratum))
         levels(dat$stratum)<-c("Negative","Positive") #change labels from 0/1
         by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
            function (x) {
@@ -216,10 +222,11 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
 dat<-fread(file,header=header)
 print(paste("Data dimensions are:",dim(dat)[1],dim(dat)[2]))
 ## To DO: check column assumptions 
-
 ##subset to data with stratum available
-subset<-dat[!is.na(dat[[strat_col]])] #remove if NA for stratum
+subset<-dat[!is.na(dat[[strat_col]])]
 print(paste("Data dimensions after removing samples with NA stratum:",dim(subset)[1],dim(subset)[2]))
+subset<-subset[!is.na(subset[[pheno_col]])]
+print(paste("Data dimensions after removing samples with NA phenotype:", dim(subset)[1],dim(subset)[2]))
 
 ############# Prevalences versus GRS#############
 ## uses prev_per_quantile_stratum and prev_per_quantile functions
@@ -233,10 +240,10 @@ for (i in 1:size){ #across q-quantiles
         prev<-qobj[[i]]$prev[j,][-list_length]
         se<-qobj[[i]]$se[j,][-list_length]
         n<-qobj[[i]]$n[j,][-list_length]
-        tiles<-qobj[[i]]$tiles[-1]
-        lower_tile<-qobj[[i]]$tiles[1:list_length-1]
-        upper_tile<-qobj[[i]]$tiles[2:list_length]
-        percents<-names(tiles)
+        tiles<-qobj[[i]]$tiles[j,][-1]
+        lower_tile<-qobj[[i]]$tiles[j,][1:list_length-1]
+        upper_tile<-qobj[[i]]$tiles[j,][2:list_length]
+        percents<-qobj[[i]]$percents[-1]
         bins<-rep(quantiles[i],list_length-1)
         strat<-rep(j-1,list_length-1)
         if (i==1 & j==1) {
@@ -255,10 +262,10 @@ for (i in 1:size){ #across q-quantiles
         prev<-sobj[[i]]$prev[j,][-list_length]
         se<-sobj[[i]]$se[j,][-list_length]
         n<-sobj[[i]]$n[j,][-list_length]
-        tiles<-sobj[[i]]$tiles[-1]
-        lower_tile<-sobj[[i]]$tiles[1:list_length-1]
-        upper_tile<-sobj[[i]]$tiles[2:list_length]
-        percents<-names(tiles)
+        tiles<-sobj[[i]]$tiles[j,][-1]
+        lower_tile<-sobj[[i]]$tiles[j,][1:list_length-1]
+        upper_tile<-sobj[[i]]$tiles[j,][2:list_length]
+        percents<-sobj[[i]]$percents[-1]
         bins<-rep(quantiles[i],list_length-1)
         strat<-rep(j-1,list_length-1)
         if (i==1 & j==1) {
@@ -268,6 +275,9 @@ for (i in 1:size){ #across q-quantiles
         }
     }
 }
+
+#print(sdf)
+#print(qdf)
 
 ymax<-max(max(qdf$prev+(1.96*qdf$se)),max(sdf$prev+(1.96*sdf$se)))
 file_name<-paste(sep=".",out,"quantileFirst.txt")
@@ -309,14 +319,16 @@ for (q in 1:length(quantiles)){
     label_list<-c("quantileFirst","stratifyFirst")
     #recalculate prevalences per quantile bin this time using FHiGRS instead of GRS
     for (i in c(1,2)){ #across stratify logic
+        fobj<-prev_per_quantile_stratum(qtile=quantiles[q],df=fdf,GRS_col=fhigrs_col,strat_col=strat_col,prev_col=pheno_col,qfirst=logic_list[i])
         for (j in c(1,2)) { #across stratum
-            fobj<-prev_per_quantile_stratum(qtile=quantiles[q],df=fdf,GRS_col=fhigrs_col,strat_col=strat_col,prev_col=pheno_col,qfirst=logic_list[i])
             list_length<-length(fobj$prev[j,])
             prev<-fobj$prev[j,][-list_length]
             se<-fobj$se[j,][-list_length]
             n<-fobj$n[j,][-list_length]
-            tiles<-fobj$tiles[-1]
-            percents<-names(tiles)
+            tiles<-fobj$tiles[j,][-1]
+            lower_tile<-fobj$tiles[j,][1:list_length-1]
+            upper_tile<-fobj$tiles[j,][2:list_length]
+            percents<-fobj$percents[-1]
             bins<-rep(quantiles[q],list_length-1)
             strat<-rep(j-1,list_length-1)
             if (j==1) {
@@ -340,7 +352,7 @@ for (q in 1:length(quantiles)){
         print(ggplot(fobj_df,aes(x=frac,y=prev,color=stratum)) + geom_point() + theme_bw() +
             geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
             scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-            labs(title=main) + xlab("FHiGR Score") + ylab(ylabel)  +
+            labs(title=main) + xlab(xlabel) + ylab(ylabel)  +
             scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
         dev.off()
     }
