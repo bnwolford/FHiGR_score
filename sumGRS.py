@@ -17,6 +17,7 @@ import glob
 import numpy as np
 import pandas as pd
 import scipy.stats as ss
+from memory_profiler import profile
 
 ###########################
 ##### PARSE ARGUMENTS ####
@@ -60,7 +61,8 @@ def check(config):
         for line in f:
             ls=line.rstrip()
             file_list.append(ls)
-        print >> sys.stderr, "Config lists %s files\n" % len(file_list)
+        num_files=len(file_list)
+        print >> sys.stderr, "Config lists %s files\n" % num_files
         for fn in file_list:
             ok=os.path.isfile(fn)
             if not ok:
@@ -68,7 +70,7 @@ def check(config):
             elif ok:
                 if os.path.getsize(fn) == 0:
                     print >> sys.stderr, "%s is an empty file\n" % fn
-    return(file_list)
+    return(file_list,num_files)
 
 
 def read_plink(sample):
@@ -104,7 +106,7 @@ def read_sample(sample):
 
 def merge(fl,sl):
     """
-    Looks at all .gen files matching the string given. Returns dictionary with information and potentially flags any missing chromosomes or chunks.
+    Looks at all files matching the string given. Returns dictionary with information and potentially flags any missing chromosomes or chunks.
     """
     ddict={} #initialize dictionary
     for sample in sl:
@@ -124,10 +126,13 @@ def merge(fl,sl):
                     ids=".".join(lineList[0:2])
                     if ids in ddict:
                         ddict[ids].append(lineList[2])
+                    else:
+                        print >> sys.stderr("%s is in  %s but not the sample file\n") % (ids,gen)
+                            
                         
     return(ddict)
 
-
+#@profile
 def merge_custom(fl,sl,id_col,score_col,header):
     """
     Looks at all files matching the string given. Returns dictionary with the id and score information.
@@ -145,18 +150,17 @@ def merge_custom(fl,sl,id_col,score_col,header):
                     lineList=ls.split()
                     sample_id=lineList[id_col]
                     if sample_id in ddict:
-                        #ddict[sample_id]=ddict[sample_id]+float(lineList[score_col])
-                        ddict[sample_id].append(lineList[score_col])
-                    else:
-                        #ddict[sample_id]=float(lineList[score_col])
-                        ddict[sample_id]=[lineList[score_col]]
+                        ddict[sample_id][0]=ddict[sample_id][0]+float(lineList[score_col])
+                        ddict[sample_id][1]+=1
+                    else: #first file in config will take a long time because of initializing this
+                        ddict[sample_id]=[float(lineList[score_col]),1]
         f.close()
 
     return(ddict)
                         
 
 
-
+#@profile
 def output(o,d,list_size,inorm):
 
     outname=".".join([o,"txt"])
@@ -165,22 +169,22 @@ def output(o,d,list_size,inorm):
         #initialize lists for inorm
         GRS_list=[]
         id_list=[]
-        out_file.write("\t".join(["IID","FID","GPS","invNorm_GPS\n"]))
+        out_file.write("\t".join(["IID","FID","GPS","invNorm_GPS\n"])) #write header
     else:
-        out_file.write("\t".join(["IID","FID","GPS\n"]))
+        out_file.write("\t".join(["IID","FID","GPS\n"])) #write header
 
     #sum across the nested dictionary to get 1 value per ID
     for ids in d.keys():
-        if len(d[ids]) != list_size: #check that all sub sums are represented 
+        if d[ids][1] != list_size: #check that all sub sums are represented 
             print >> sys.stderr, "%s does not have expected number (%d) of sub-chunks to sum\n"  % (ids,list_size)
-        GRS=sum(float(sub_sum) for sub_sum in d[ids])
+        GRS=d[ids][0]
         #if we want to inverse normalize just save data to ordered lists
         if inorm is True:
             GRS_list.append(GRS)
             id_list.append(ids)
         #otherwise write to file
         else:
-            if "." in ids[0]: #if this script created FID.IID
+            if "." in ids[0]: #if this script created FID.IID identifier
                 id_1,id_2=ids.split(".")
                 out_file.write("\t".join([id_1,id_2,str(GRS)])+"\n")
             else:
@@ -253,7 +257,7 @@ def main():
     args = get_settings()
 
     #check that all the chunk/chr files exist
-    file_list=check(args.config)
+    file_list,num_files=check(args.config)
 
     #read in samples that are expected from either a PLINK type file or sample list like from bcftools query -l
     if (args.sample_file is None and args.plink_file is None) or (args.sample_file is not None and args.plink_file is not None):
@@ -270,7 +274,7 @@ def main():
     else:
         data=merge(file_list,sample_list) #assumes score results file with FID, IID, score
     
-
+    print(data)
     #write output
     output(args.output,data,len(file_list),args.invNorm)
 
