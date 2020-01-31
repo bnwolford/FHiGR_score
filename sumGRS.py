@@ -274,7 +274,6 @@ def main():
     else:
         data=merge(file_list,sample_list) #assumes score results file with FID, IID, score
     
-    print(data)
     #write output
     output(args.output,data,len(file_list),args.invNorm)
 
