@@ -337,7 +337,6 @@ for (q in 1:length(quantiles)){
                 fobj_df<-rbind(fobj_df,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
             }
         }
-
         ##make prevalence plot 
         name<-as.character(unique(fobj_df$q))
         fobj_df$frac<-as.numeric(sub("%","",fobj_df$percents)) #convert factor percentages to numeric
@@ -360,11 +359,12 @@ for (q in 1:length(quantiles)){
     fdf[[strat_col]]<-as.factor(fdf[[strat_col]])
     levels(fdf[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
     stratum<-names(fdf)[[strat_col]]
+    fdf_sub<-fdf[,c("FHIGRS",stratum),with=FALSE]
     pdf_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.pdf")
     png_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.png")
     ##make pdf
     pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+    print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
           geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
@@ -372,7 +372,7 @@ for (q in 1:length(quantiles)){
     dev.off()
     ##make png
     png(file=png_fn,height=1000,width=1200,res=200)
-    print(ggplot(fdf,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+    print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
           geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
           scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
           theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
@@ -387,16 +387,17 @@ subset$invNormGRS<-rankNorm(subset[[grs_col]])
 subset[[strat_col]]<-as.factor(subset[[strat_col]])
 levels(subset[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
 stratum<-names(subset)[[strat_col]]
+subset2<-subset[,c("FHIGRS",stratum),with=FALSE]
 ##make pdf
 pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-print(ggplot(subset,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) +
+print(ggplot(subset2,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) +
       scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
       theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
       labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
 dev.off()
 ##make png
 png(file=png_fn,height=1250,width=1500,res=200)
-print(ggplot(subset,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/25,dotsize=0.5) +
+print(ggplot(subset2,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/25,dotsize=0.5) +
       scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
       theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
       labs(title=main,ylab="Density",xlab=xlabel) + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
