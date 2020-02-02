@@ -211,13 +211,13 @@ def main():
     #get arguments
     args=get_settings()
 
-    print >> sys.stderr, "Not generalized yet. The VCF path printing to config file is hardcoded\n")
+    print >> sys.stderr, "Not generalized yet. The VCF path printing to config file is hardcoded\n"
     
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col)
 
     #chr     start   end     N       chunk   bgen    sample  prefi
-    chunk_list=read_chunks(args.chunk_file.args.prefix_col)
+    chunk_list=read_chunks(args.chunk_file,args.prefix_col)
 
     #write regions and config file
     make_regions(weight_dict,chunk_list,args.output_prefix,args.num_chunk)
