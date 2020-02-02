@@ -387,7 +387,7 @@ subset$invNormGRS<-rankNorm(subset[[grs_col]])
 subset[[strat_col]]<-as.factor(subset[[strat_col]])
 levels(subset[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
 stratum<-names(subset)[[strat_col]]
-subset2<-subset[,c("FHIGRS",stratum),with=FALSE]
+subset2<-subset[,c("invNormGRS",stratum),with=FALSE]
 ##make pdf
 pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
 print(ggplot(subset2,aes(x=invNormGRS,color=get(stratum),fill=get(stratum)))  +  geom_dotplot(method="histodot",binwidth=1/33,dotsize=0.5) +
