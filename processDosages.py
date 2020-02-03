@@ -150,11 +150,11 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
                 elif coord is not None:
                     if len(lineList[coord].split(":"))!=4:
                         sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
-                    if vcf_chrom is not None:
+                    elif vcf_chrom is not None: #subset to a specific chromosome
                         if lineList[coord].split(":")[0]==vcf_chrom: #only save info for chromosome of interest
                            weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
-                else:  #dont need an else condition because of argument check
-                    continue
+                    else:
+                        weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
     return weight_dict
 
 
