@@ -52,6 +52,7 @@ def get_settings():
     parser.add_argument("--header",help="Flag if score file has header.",action='store_true',default=False)
     parser.set_defaults(chrom=True,invNorm=False)
     args=parser.parse_args()
+    return args
 
 ###############################
 ######## SUB ROUTINES  #########
@@ -272,7 +273,8 @@ def main():
 
     #get arguments
     args = get_settings()
-
+    print(args)
+    
     #check that all the chunk/chr files exist
     file_list,num_files=check(args.config)
 
