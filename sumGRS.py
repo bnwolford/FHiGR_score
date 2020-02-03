@@ -1,11 +1,29 @@
 #!/usr/bin/env python
 
 #===============================================================================
-# Copyright (C) 2019 Brooke Wolford
+# Copyright (c) 2019 Brooke Wolford
+# Revised from Dr. Ida Surakka's Chunk_compiler.R
 # Lab of Dr. Cristen Willer and Dr. Mike Boehnke
-# Adapted from Dr. Ida Surakka's Chunk_compiler.R
-# Merge weighted sums across chromosomes and chunks to calculate one genome wide polygenic risk score per individual
-#=============================================================================
+# University of Michigan
+
+#Permission is hereby granted, free of charge, to any person obtaining a copy
+#of this software and associated documentation files (the "Software"), to deal
+#in the Software without restriction, including without limitation the rights
+#to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#copies of the Software, and to permit persons to whom the Software is
+#furnished to do so, subject to the following conditions:
+
+#The above copyright notice and this permission notice shall be included in all
+#copies or substantial portions of the Software.
+
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#SOFTWARE.
+#============================================================================
 
 ############################
 ##### IMPORT MODULES #######
@@ -23,7 +41,7 @@ from memory_profiler import profile
 ##### PARSE ARGUMENTS ####
 ###########################
 def get_settings():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Merge weighted sums across chromosomes and chunks to calculate one genome wide polygenic risk score per individual\n")
     parser.add_argument("-p","--plink_file",help="File with header and FID and IID of the samples you expect to calcualte GRS for",type=str)
     parser.add_argument("-s","--sample_file",help="File with no header and one column of samples that you expect to calcualte GRS for",type=str)
     parser.add_argument("-c","--config",help="Config file with new line delimited list of all the file names to merge",required=True,type=str)
@@ -34,7 +52,6 @@ def get_settings():
     parser.add_argument("--header",help="Flag if score file has header.",action='store_true',default=False)
     parser.set_defaults(chrom=True,invNorm=False)
     args=parser.parse_args()
-    return args
 
 ###############################
 ######## SUB ROUTINES  #########
