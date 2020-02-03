@@ -67,7 +67,7 @@ for module in sys.modules:
 ###########################
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
-    parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arugments.")
+    parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arguments.")
     parser.add_argument("-cc","--chrom_col",help="0-based column with chromosome in file",type=int)
     parser.add_argument("-pc","--pos_col",help="0-based column with end position of variant in weight file",type=int)
     parser.add_argument("-dc","--coord_col",help="0-based column with chromosome:position:ref:alt of variant in weight file", type=int)
@@ -75,7 +75,7 @@ def get_settings():
     parser.add_argument("-rc","--ref_col",help="0-based column with reference allele in weight file",type=int)
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
-    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
+    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16,type=int)
     parser.add_argument("-k","--chunk",help="Split weights file into -n number of markers. If this is not used and many markers are in -w, the process is quite memory intensive",action="store_true")
     parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument("-c","--chrom",help="Provide a chromosome number", type=int)
@@ -120,7 +120,7 @@ def open_zip(f):
         print >> sys.stderr, "Opening file %s\n" % f
     return command
                             
-def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num):
+def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num,header_lines):
     """
     Read file with weights into dictionary and regions files for tabix.
     """
@@ -129,8 +129,9 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num):
     counter=0
     with command as f:
         for line in f:
-            ls=line.rstrip()
-            if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
+            counter+=1
+            if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
+                ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
                     if chrom_num is not None: #only save info for chromosome of interes
@@ -194,7 +195,8 @@ def main():
          print >> sys.stderr, "Region file(s) only contain chromosome %s\n"  %  args.chrom
         
     #create dictionary of weights per variant
-    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.chrom)
+    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.chrom,args.header_lines)
+    print(weight_dict)
     
     #Write out regions file for tabix using dictionary and chunk parameters
     file_names,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk,args.chunk,args.chrom)
