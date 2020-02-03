@@ -196,7 +196,6 @@ def main():
         
     #create dictionary of weights per variant
     weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.chrom,args.header_lines)
-    print(weight_dict)
     
     #Write out regions file for tabix using dictionary and chunk parameters
     file_names,num_markers=make_regions_file(weight_dict,args.output_prefix,args.num_chunk,args.chunk,args.chrom)
