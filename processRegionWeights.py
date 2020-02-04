@@ -77,7 +77,7 @@ def get_settings():
     parser.add_argument("-rc","--ref_col",help="0-based column with reference allele in weight file",type=int)
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
-    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
+    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16,type=int)
     parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
@@ -116,7 +116,7 @@ def open_zip(f):
         print >> sys.stderr, "Opening file %s\n" % f
     return command
                             
-def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight):
+def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,header_lines):
     """
     Read file with weights into dictionary.
     """
@@ -125,8 +125,9 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight):
     counter=0
     with command as f:
         for line in f:
-            ls=line.rstrip()
-            if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
+            counter+=1
+            if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"): #handle header
+                ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
                     coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
@@ -135,8 +136,9 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight):
                     if len(lineList[coord].split(":"))!=4:
                         sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
                     weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
-                else:  #dont need an else condition because of argument check
-                    continue
+                else: #earlier checks mean we should never hit this
+                    sys.stderr.write("Error\n")
+
     return weight_dict
 
 def read_chunks(chunk_file,prefix_col):
@@ -155,6 +157,10 @@ def read_chunks(chunk_file,prefix_col):
 def  make_regions(weight_dict,chunk_list,output_prefix,num_chunk):
     """ Make a region files using weights and known chunks """
     total=len(weight_dict.keys())
+    if total==0:
+        sys.stderr.write("Weights file is empty\n")
+        sys.exit()
+        
     #open config file
     config="_".join([output_prefix,"config.txt"])
     cfile=open(config,'w+')
@@ -214,7 +220,7 @@ def main():
     print >> sys.stderr, "Not generalized yet. The VCF path printing to config file is hardcoded\n"
     
     #create dictionary of weights per variant
-    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col)
+    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.header_lines)
 
     #chr     start   end     N       chunk   bgen    sample  prefi
     chunk_list=read_chunks(args.chunk_file,args.prefix_col)
