@@ -29,6 +29,7 @@ optionList <- list(
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--maintitle", type="character", default="",help="Plot title [default='']"),
+  make_option("--legend",type="character",default="",help="Legend"),
   make_option("--codeDir",type="character",default="/FHiGR_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGR_score/]")
 )
 
@@ -69,6 +70,7 @@ if (length(birthYear_col)==0){
 }
 out<-arguments$options$output
 main<-arguments$options$maintitle
+legend<-arguments$options$legend
 dig<-arguments$option$digits
 header<-arguments$options$header
 
@@ -95,7 +97,7 @@ strat1<-nrow(dat[dat[[strat_col]]==1,])
 stratNA<-nrow(dat[is.na(dat[[strat_col]]),])
 
 ## age at time of self report for everyone                                      
-pdf_fn<-paste(sep=".",out,"age_at_SR.pdf")
+pdf_fn<-paste(sep=".",out,"age_all.pdf")
 pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
 ggplot(dat,aes(x=get(names(dat)[age_col]))) + geom_density(fill="black",alpha=0.75) + theme_bw() +
     labs(x="Enrollment age", caption=bquote("N="~.(n)))+
@@ -104,10 +106,10 @@ dev.off()
 
 
 ##age at time of self report and family history for 1/0
-pdf_fn<-paste(sep=".",out,"age_at_SR_stratify.pdf")
+pdf_fn<-paste(sep=".",out,"age_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[!is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]),fill=factor(get(names(dat)[strat_col])))) + geom_density(alpha=0.7) + theme_bw() +
-    scale_fill_manual(values=c("goldenrod","dark blue"),name="Family History",labels=c("Negative","Positive")) +
+    scale_fill_manual(values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive")) +
     labs(x="Enrollment Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
@@ -115,16 +117,16 @@ dev.off()
 ## birth year distribution stratified
 pdf_fn<-paste(sep=".",out,"birthYear_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat[!is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]),fill=factor(get(names(dat)[strat_col])))) + geom_density(alpha=0.7) + theme_bw() + scale_fill_manual(values=c("goldenrod","dark blue"),name="Family History",labels=c("Negative","Positive")) +
+ggplot(dat[!is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]),fill=factor(get(names(dat)[strat_col])))) + geom_density(alpha=0.7) + theme_bw() + scale_fill_manual(values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive")) +
     labs(x="BirthYear",caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
 ##age at time of self report and family history for NA (age may also be missing if FH is missing)
-pdf_fn<-paste(sep=".",out,"age_at_SR_stratifyNA.pdf")
+pdf_fn<-paste(sep=".",out,"age_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
-    labs(x="Enrollment Age",caption=bquote(N[NA]~"="~.(stratNA)),tile=main) +
+    labs(x="Enrollment Age",caption=bquote(N['NA']~"="~.(stratNA)),tile=main) +
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
@@ -132,10 +134,25 @@ dev.off()
 pdf_fn<-paste(sep=".",out,"birthYear_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
-    labs(x="Birth Year",caption=bquote(N[NA]~"="~.(stratNA)),title=main) + 
+    labs(x="Birth Year",caption=bquote(N['NA']~"="~.(stratNA)),title=main) + 
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
+## estimated current age for 0/1/NA
+dat$current_age<-2019-dat[[birthYear_col]]
+dat$facet<-ifelse(is.na(dat[[strat_col]]),1,0)
+pdf_fn<-paste(sep=".",out,"currentAge.pdf")
+pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
+g<-ggplot(dat,aes(x=current_age,fill=factor(get(names(dat)[strat_col]))))+ geom_density(alpha=0.7,position="stack")  + theme_bw()  +
+    labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) +
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
+if (length(unique(dat[[strat_col]]))==3){
+    g<-g+facet_wrap(~facet) + scale_fill_manual(aes(dat,factor(get(names(dat)[strat_col]))),values=c("goldenrod","dark blue","grey"),name=legend,labels=c("Negative","Positive","NA"))  + theme(strip.text=element_blank())
+} else{
+    g<-g+scale_fill_manual(values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive"))
+}
+print(g)
+dev.off()
 
 ### to do histogram?
 
