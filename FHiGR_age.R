@@ -108,7 +108,7 @@ pdf_fn<-paste(sep=".",out,"age_at_SR_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[!is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]),fill=factor(get(names(dat)[strat_col])))) + geom_density(alpha=0.7) + theme_bw() +
     scale_fill_manual(values=c("goldenrod","dark blue"),name="Family History",labels=c("Negative","Positive")) +
-    labs(x="Enrollment Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)))+
+    labs(x="Enrollment Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
@@ -116,7 +116,7 @@ dev.off()
 pdf_fn<-paste(sep=".",out,"birthYear_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[!is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]),fill=factor(get(names(dat)[strat_col])))) + geom_density(alpha=0.7) + theme_bw() + scale_fill_manual(values=c("goldenrod","dark blue"),name="Family History",labels=c("Negative","Positive")) +
-    labs(x="BirthYear",caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)))+
+    labs(x="BirthYear",caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
@@ -124,7 +124,7 @@ dev.off()
 pdf_fn<-paste(sep=".",out,"age_at_SR_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
-    labs(x="Enrollment Age",caption=bquote(N[NA]~"="~.(stratNA))) +
+    labs(x="Enrollment Age",caption=bquote(N[NA]~"="~.(stratNA)),tile=main) +
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
@@ -132,7 +132,7 @@ dev.off()
 pdf_fn<-paste(sep=".",out,"birthYear_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
-    labs(x="Birth Year",caption=bquote(N[NA]~"="~.(stratNA))) + 
+    labs(x="Birth Year",caption=bquote(N[NA]~"="~.(stratNA)),title=main) + 
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
