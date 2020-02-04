@@ -77,7 +77,7 @@ def get_settings():
     parser.add_argument("-rc","--ref_col",help="0-based column with reference allele in weight file",type=int)
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
-    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16)
+    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",type=int)
     parser.add_argument('-v', '--single_vcf',help="Path to VCF. Expects GT:DS")
     parser.add_argument("-c","--vcf_chrom",help="Provide a chromosome number  of VCF of multi VCFs for efficiency",type=int)
     parser.add_argument('-i', '--id_file', help="File with sampleIDs in the same order as the VCF",type=str)
@@ -127,7 +127,7 @@ def open_zip(f):
 
 #create dictionary of weight per variant
 #@profile
-def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
+def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom,header_lines):
     """
     Read file with weights into dictionary and regions files for tabix.
     """
@@ -136,8 +136,8 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom):
     counter=0
     with command as f:
         for line in f:
-            ls=line.rstrip()
-            if ls[0].isdigit(): #assumes we ignore header lines not starting with a digit
+            if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
+                ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
                     if vcf_chrom is not None: #only save info for chromosome of interes
@@ -255,7 +255,7 @@ def main():
 
 
     #create dictionary of weights per variant
-    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom)
+    weight_dict=read_weights(args.weight_file,args.chrom_col,args.pos_col,args.ref_col,args.alt_col,args.coord_col,args.ea_col,args.weight_col,args.vcf_chrom,args.header_lines)
     if len(weight_dict.keys())==0:
         print >> sys.stderr, "No markers in this weight file %s\n" % args.weight_file
         empty_weights(sample_id,args.output_prefix)
