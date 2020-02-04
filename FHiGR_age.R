@@ -130,5 +130,7 @@ dev.off()
 
 ### to do histogram?
 
-
+### glm to predict age using strata
+glm.obj<-glm(get(names(dat)[age_col])~get(names(dat)[strat_col]),data=dat)
+print(summary(glm.obj))
 
