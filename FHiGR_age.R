@@ -138,23 +138,26 @@ ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]))) + geo
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
-## estimated current age for 0/1/NA
+## estimated current age for 0/1/NA (NA facet is not on the same scale though)
 dat$current_age<-2019-dat[[birthYear_col]]
 dat$facet<-ifelse(is.na(dat[[strat_col]]),1,0)
 pdf_fn<-paste(sep=".",out,"currentAge.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-g<-ggplot(dat,aes(x=current_age,fill=factor(get(names(dat)[strat_col]))))+ geom_density(alpha=0.7,position="stack")  + theme_bw()  +
-    labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
-if (length(unique(dat[[strat_col]]))==3){
-    g<-g+facet_wrap(~facet) + scale_fill_manual(aes(dat,factor(get(names(dat)[strat_col]))),values=c("goldenrod","dark blue","grey"),name=legend,labels=c("Negative","Positive","NA"))  + theme(strip.text=element_blank())
-} else{
-    g<-g+scale_fill_manual(values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive"))
-}
-print(g)
+ggplot(dat,aes(x=current_age,fill=factor(get(names(dat)[strat_col]))))+ geom_density(alpha=0.7,position="stack")  + theme_bw()  +
+    labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive"))
 dev.off()
 
-### to do histogram?
+pdf_fn<-paste(sep=".",out,"currentAge_hist.pdf")
+pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
+ggplot(dat,aes(x=current_age,fill=factor(get(names(dat)[strat_col]))))+ geom_histogram(alpha=0.7,binwidth=2)  + theme_bw() +
+    labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=c("goldenrod","dark blue"),name=legend,labels=c("Negative","Positive"))
+dev.off()
+    
+
+
+## do this with participation age 
 
 ### glm to predict age using strata
 glm.obj<-glm(get(names(dat)[age_col])~get(names(dat)[strat_col]),data=dat)
