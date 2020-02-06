@@ -77,7 +77,7 @@ def get_settings():
     parser.add_argument("-rc","--ref_col",help="0-based column with reference allele in weight file",type=int)
     parser.add_argument("-ac","--alt_col",help="0-based column with alternate allele in weight file",type=int)
     parser.add_argument("-wc","--weight_col",help="0-based column with weight",type=int,default=2)
-    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",default=16,type=int)
+    parser.add_argument("-l","--header_lines",help="Number of header lines in weight file to skip",type=int)
     parser.add_argument("-n","--num_chunk",help="Number of markers from weight file to run at a time",default=1000,type=int)
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
