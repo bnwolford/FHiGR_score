@@ -136,6 +136,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom,header_
     counter=0
     with command as f:
         for line in f:
+            counter+=1
             if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
                 ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
