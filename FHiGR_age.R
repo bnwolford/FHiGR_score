@@ -157,9 +157,10 @@ ggplot(dat,aes(x=current_age,fill=strat)) + geom_histogram(alpha=0.7,binwidth=2)
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
 dev.off()
 
-pdf_fn<-paste(sep=".",out,"currentAge_freqpoly.pdf")
+pdf_fn<-paste(sep=".",out,"currentAge_area.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=current_age,fill=strat)) + geom_freqpoly(alpha=0.7,binwidth=2) + theme_bw() +
+ggplot(dat,aes(x=current_age,fill=strat)) + theme_bw() +
+    geom_area(aes(y = ..count.., fill = strat, group = strat), stat = "bin",alpha=0.7) +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text =element_blank()) + scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
 dev.off()
