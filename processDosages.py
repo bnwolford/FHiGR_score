@@ -69,7 +69,7 @@ for module in sys.modules:
 def get_settings():
     parser = argparse.ArgumentParser(description='Enter files to use for PRS calculation')
     parser.add_argument('-r','--region_file',help="Region file already made for tabix from processWeights.py",type=str)
-    parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arugments.")
+    parser.add_argument('-w', '--weight_file',help="Must be sorted by position. Columns and headers are customizable with arugments. Weights must be positive.")
     parser.add_argument("-cc","--chrom_col",help="0-based column with chromosome in file",type=int)
     parser.add_argument("-pc","--pos_col",help="0-based column with end position of variant in weight file",type=int)
     parser.add_argument("-dc","--coord_col",help="0-based column with chromosome:position:ref:alt of variant in weight file", type=int)
