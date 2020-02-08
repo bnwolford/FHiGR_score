@@ -2,6 +2,10 @@
 
 #### Revised from Dr.Sarah Graham
 
+### first argument is config file of file names
+### second argument is output file prefix
+### writes file with individual, GRS, and invNorm_GRS 
+
 library(data.table)
 library(dplyr)
 library(RNOmni)
