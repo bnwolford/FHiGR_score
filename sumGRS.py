@@ -122,38 +122,37 @@ def read_sample(sample):
             sample_list.append(ls)
     return sample_list
 
-def merge(fl,sl):
+def merge(fl,sl,header):
     """
-    Looks at all files matching the string given. Returns dictionary with information and potentially flags any missing chromosomes or chunks.
+    Looks at all files in the file list and returns a dictionary matching sample FID.IID to summed score.
     """
     ddict={} #initialize dictionary
     for sample in sl:
         ddict[sample]=[] #initialize list
 
-    for gen in fl:
-        command=open_zip(gen)
+    for score_file in fl:
+        command=open_zip(score_file)
         count=0
         with command as f:
             for line in f:
-                if count==0: #skip 1 line header
+                if header is True and count==0: #skip 1 line header of score file
                     count+=1
-                    next
                 else:
                     ls=line.rstrip() #expects FID, IID, weighted sum from DOSEtoGRS.py
                     lineList=ls.split(" ")
-                    ids=".".join(lineList[0:2])
+                    ids=".".join(lineList[0:2]) #join FID and IID 
                     if ids in ddict:
-                        ddict[ids].append(lineList[2])
-                    else:
-                        print >> sys.stderr("%s is in  %s but not the sample file\n") % (ids,gen)
-                            
-                        
+                        ddict[ids][0]=ddict[ids][0]+float(lineList[2]) #add sum
+                        ddict[ids][1]+=1 #counter
+                    else: #first file in config will take a long time because of intializing this
+                        ddict[ids]=[float(lineList[2]),1] #list of initial score and count
+                                                    
     return(ddict)
 
 #@profile
 def merge_custom(fl,sl,id_col,score_col,header):
     """
-    Looks at all files matching the string given. Returns dictionary with the id and score information.
+    Looks at all files in the file list and returns a dictionary matching sample id to summed score.
     """
     ddict={} #initialize dictionary
     for score_file in fl:
@@ -161,7 +160,7 @@ def merge_custom(fl,sl,id_col,score_col,header):
         count=0
         with command as f:
             for line in f:
-                if header is True and count==0: #skip 1 line header
+                if header is True and count==0: #skip 1 line header of score file
                     count+=1
                 else:
                     ls=line.rstrip()
@@ -291,7 +290,7 @@ def main():
     if (args.score_column is not None and args.id_column is not None):
         data=merge_custom(file_list,sample_list,args.id_column,args.score_column,args.header) #provide custom columns
     else:
-        data=merge(file_list,sample_list) #assumes score results file with FID, IID, score
+        data=merge(file_list,sample_list,args.header) #assumes score results file with FID, IID, score
     
     #write output
     output(args.output,data,len(file_list),args.invNorm)
