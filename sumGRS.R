@@ -19,11 +19,10 @@ data_list <- lapply(data_list, function(x) unique(x, by="individual")) #unique s
 
 data_all <- Reduce(function(...) left_join(...,by=c("individual"="individual")), data_list) #join into 1
 
-print(summary(data_all$risk_score_sum))
-data_all$risk_score_sum <- rowSums(data_all[,2:ncol(data_all)],na.rm=TRUE)  #row sums
-print(head(data_all))
-data_all <- data_all[,c("individual", "risk_score_sum")] #subset to id and sum
-data_all$invNorm <-rankNorm(data_all$risk_score_sum) #inverse normalize 
+data_all$GRS <- rowSums(data_all[,2:ncol(data_all)],na.rm=TRUE)  #row sums
+
+data_all <- data_all[,c("individual", "GRS")] #subset to id and sum
+data_all$invNorm_GRS <-rankNorm(data_all$GRS) #inverse normalize 
 
 write.table(data_all, paste(sep=".",out,"total.txt"), col.names=TRUE, row.names=FALSE,sep="\t",quote=FALSE)
 
