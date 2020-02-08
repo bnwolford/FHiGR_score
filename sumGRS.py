@@ -180,9 +180,10 @@ def merge_custom(fl,sl,id_col,score_col,header):
 
 #@profile
 def output(o,d,list_size,inorm):
-
+    
     outname=".".join([o,"txt"])
     out_file=open(outname,"w")
+    print >> sys.stderr, "Writing %s\n" % outname
     if inorm is True:
         #initialize lists for inorm
         GRS_list=[]
@@ -217,7 +218,7 @@ def output(o,d,list_size,inorm):
             else:
                 out_file.write("\t".join([id_list[i],id_list[i],str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
             
-    return out_file
+    return outname
 
 
 #Code adapted from https://github.com/edm1/rank-based-INT/blob/master/rank_based_inverse_normal_transformation.py
@@ -264,11 +265,21 @@ def rank_to_normal(rank, c, n):
     x = (rank - c) / (n - 2*c + 1)
     return ss.norm.ppf(x)
 
-def merge_pheno(of,pf):
+def merge_pheno(gf,pf,out):
     """ Merge summed GRS file with phenotype file and preserve headers"""
-    grs=pd.DataFrame(of)
-    pheno=pd.DataFrame(pf)
-    print(pheno.head())
+    outname="_".join([out,"pheno.txt"])
+    print >> sys.stderr, "Merging %s with %s\n" % (gf,pf)
+    grs=pd.read_csv(gf,sep="\t")
+    pheno=pd.read_csv(pf,sep="\t")
+    m=pd.merge(grs,pheno,how="outer")
+    outname="_".join([out,"pheno.txt"])
+    dim=m.shape
+    print >> sys.stderr,"Writing to %s with %d rows and %d columns\n" % (outname, dim[0],dim[1])
+    m.to_csv(outname,sep="\t",index=False) #write file
+
+    #does this remove duplicate columns? is it memory efficient? 
+
+    return 0
     
     
 
@@ -301,11 +312,11 @@ def main():
         data=merge(file_list,sample_list,args.header) #assumes score results file with FID, IID, score
     
     #write output
-    of=output(args.output,data,len(file_list),args.invNorm)
+    gf=output(args.output,data,len(file_list),args.invNorm) #saves name of output file which has GRS
 
     #merge with phenotype file
-    if args.pheno is not None:
-        merge_pheno(of,args.pheno_file)
+    if args.pheno_file is not None:
+        merge_pheno(gf,args.pheno_file,args.output)
 
     
 main()
