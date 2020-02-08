@@ -49,7 +49,8 @@ def get_settings():
     parser.add_argument("-i","--invNorm",help="Will print additional column with inverse normalized score",action='store_true')
     parser.add_argument("--id_column",help="0-based column with ID in the score file. IDs should match those from plink_file or sample_file. If not provided, assumes FID, IID, score",type=int)
     parser.add_argument("--score_column",help="0-based column with score in the score file. If not provided, assumes FID, IID, score",type=int)
-    parser.add_argument("--header",help="Flag if score file has header.",action='store_true',default=False)
+    parser.add_argument("-l","--header",help="Flag if score file has header.",action='store_true',default=False)
+    parser.add_argument("-f","--pheno_file",help="Phenotype file with header and first column is samples you expect to merge with GRS file. If too large can make this script memory intesive.",type=str)
     parser.set_defaults(chrom=True,invNorm=False)
     args=parser.parse_args()
     return args
@@ -186,9 +187,9 @@ def output(o,d,list_size,inorm):
         #initialize lists for inorm
         GRS_list=[]
         id_list=[]
-        out_file.write("\t".join(["IID","FID","GPS","invNorm_GPS\n"])) #write header
+        out_file.write("\t".join(["IID","FID","GRS","invNorm_GRS\n"])) #write header
     else:
-        out_file.write("\t".join(["IID","FID","GPS\n"])) #write header
+        out_file.write("\t".join(["IID","FID","GRS","\n"])) #write header
 
     #sum across the nested dictionary to get 1 value per ID
     for ids in d.keys():
@@ -210,12 +211,13 @@ def output(o,d,list_size,inorm):
     if inorm is True:
         trans_GRS_list=rank_INT(GRS_list)
         for i in range(len(trans_GRS_list)):
-            if "." in ids[0]: #if this script created FID.IID
+            if "." in ids[0]: #if this script created FID.IID from plink file 
                 id_1,id_2=id_list[i].split(".")
                 out_file.write("\t".join([id_1,id_2,str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
             else:
                 out_file.write("\t".join([id_list[i],id_list[i],str(GRS_list[i]),str(trans_GRS_list[i])])+"\n")
-    return 0
+            
+    return out_file
 
 
 #Code adapted from https://github.com/edm1/rank-based-INT/blob/master/rank_based_inverse_normal_transformation.py
@@ -261,6 +263,12 @@ def rank_to_normal(rank, c, n):
     # Standard quantile function
     x = (rank - c) / (n - 2*c + 1)
     return ss.norm.ppf(x)
+
+def merge_pheno(of,pf):
+    """ Merge summed GRS file with phenotype file and preserve headers"""
+    grs=pd.DataFrame(of)
+    pheno=pd.DataFrame(pf)
+    print(pheno.head())
     
     
 
@@ -293,9 +301,11 @@ def main():
         data=merge(file_list,sample_list,args.header) #assumes score results file with FID, IID, score
     
     #write output
-    output(args.output,data,len(file_list),args.invNorm)
+    of=output(args.output,data,len(file_list),args.invNorm)
 
-    
+    #merge with phenotype file
+    if args.pheno is not None:
+        merge_pheno(of,args.pheno_file)
 
     
 main()
