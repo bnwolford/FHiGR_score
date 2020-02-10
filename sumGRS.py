@@ -273,7 +273,7 @@ def merge_pheno(gf,pf,out,drop):
     grs=pd.read_csv(gf,sep="\t")
     pheno=pd.read_csv(pf,sep="\t")
     if drop is True: #drop any entries in genetic file that are not in phenotype file
-        m=pd.merge(grs,pheno,how="left")
+        m=pd.merge(grs,pheno,how="right")
     elif drop is False: #keep all entries in either genetic or phenotypic file
         m=pd.merge(grs,pheno,how="outer")
 
