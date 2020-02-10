@@ -51,6 +51,7 @@ def get_settings():
     parser.add_argument("--score_column",help="0-based column with score in the score file. If not provided, assumes FID, IID, score",type=int)
     parser.add_argument("-l","--header",help="Flag if score file has header.",action='store_true',default=False)
     parser.add_argument("-f","--pheno_file",help="Phenotype file with header and first column is samples you expect to merge with GRS file. If too large can make this script memory intesive.",type=str)
+    parser.add_argument("-d","--drop",help="Drop entries in genetic risk score data that are not in the phenotype file",action='store_true')
     parser.set_defaults(chrom=True,invNorm=False)
     args=parser.parse_args()
     return args
@@ -265,17 +266,21 @@ def rank_to_normal(rank, c, n):
     x = (rank - c) / (n - 2*c + 1)
     return ss.norm.ppf(x)
 
-def merge_pheno(gf,pf,out):
+def merge_pheno(gf,pf,out,drop):
     """ Merge summed GRS file with phenotype file and preserve headers"""
     outname="_".join([out,"pheno.txt"])
     print >> sys.stderr, "Merging %s with %s\n" % (gf,pf)
     grs=pd.read_csv(gf,sep="\t")
     pheno=pd.read_csv(pf,sep="\t")
-    m=pd.merge(grs,pheno,how="outer")
+    if drop is True: #drop any entries in genetic file that are not in phenotype file
+        m=pd.merge(grs,pheno,how="left")
+    elif drop is False: #keep all entries in either genetic or phenotypic file
+        m=pd.merge(grs,pheno,how="outer")
+
     outname="_".join([out,"pheno.txt"])
     dim=m.shape
     print >> sys.stderr,"Writing to %s with %d rows and %d columns\n" % (outname, dim[0],dim[1])
-    m.to_csv(outname,sep="\t",index=False) #write file
+    m.to_csv(outname,sep="\t",index=False,na_rep="NA") #write file, will write NA for NaN values
 
     #does this remove duplicate columns? is it memory efficient? 
 
@@ -316,7 +321,7 @@ def main():
 
     #merge with phenotype file
     if args.pheno_file is not None:
-        merge_pheno(gf,args.pheno_file,args.output)
+        merge_pheno(gf,args.pheno_file,args.output,args.drop)
 
     
 main()
