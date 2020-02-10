@@ -83,7 +83,7 @@ source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to 
 ##split into provided number of quantiles and then by provided stratum if qfirst==TRUE
 ##TO DO: checking for binary variable isn't working as expected
 prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=FALSE){
-  if (!sum(unique(df[[strat_col]])==c(0,1))==2) {
+  if (!(sum(unique(df[[strat_col]])==c(0,1))==2 || sum(unique(df[[strat_col]])==c(1,0))==2)) {
     print("Stratum column must be a binary variable. Expects 0 and 1.")
   }
   pheno_vals<-df[!is.na(df[[prev_col]])][[prev_col]]
@@ -221,6 +221,11 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1){
 ##read data 
 dat<-fread(file,header=header)
 print(paste("Data dimensions are:",dim(dat)[1],dim(dat)[2]))
+
+n<-nrow(dat)
+strat0<-nrow(dat[dat[[strat_col]]==0,])
+strat1<-nrow(dat[dat[[strat_col]]==1,])
+stratNA<-nrow(dat[is.na(dat[[strat_col]]),])
 ## To DO: check column assumptions 
 ##subset to data with stratum available
 subset<-dat[!is.na(dat[[strat_col]])]
