@@ -230,14 +230,14 @@ all<-nrow(dat)
 
 ## To DO: check column assumptions 
 ##subset to data with stratum available
-subset<-dat[!is.na(dat[[pheno_col]])]
+df2<-dat[!is.na(dat[[pheno_col]])]
 print(paste("Data dimensions after removing samples with NA phenotype:", dim(subset)[1],dim(subset)[2]))
 
-strat0<-nrow(subset[subset[[strat_col]]==0,])
-strat1<-nrow(subset[subset[[strat_col]]==1,])
-stratNA<-nrow(subset[is.na(subset[[strat_col]]),])
+strat0<-nrow(df2[df2[[strat_col]]==0,])
+strat1<-nrow(df2[df2[[strat_col]]==1,])
+stratNA<-nrow(df2[is.na(df2[[strat_col]]),])
 
-subset<-subset[!is.na(dat[[strat_col]])]
+subset<-df2[!is.na(df2[[strat_col]])]
 print(paste("Data dimensions after removing samples with NA stratum:",dim(subset)[1],dim(subset)[2]))
 
 ############# Prevalences versus GRS#############
