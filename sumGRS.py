@@ -35,7 +35,7 @@ import glob
 import numpy as np
 import pandas as pd
 import scipy.stats as ss
-from memory_profiler import profile
+#from memory_profiler import profile
 
 ###########################
 ##### PARSE ARGUMENTS ####
