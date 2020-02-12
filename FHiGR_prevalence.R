@@ -87,7 +87,7 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
     print("Stratum column must be a binary variable. Expects 0 and 1.")
   }
   pheno_vals<-df[!is.na(df[[prev_col]])][[prev_col]]
-  if (!sum(unique(pheno_vals)==c(0,1))==2) {
+  if (!(sum(unique(pheno_vals)==c(0,1))==2 || sum(unique(pheno_vals)==c(1,0))==2)) {
       print("Column for calculating prevalence of trait must be a binary variable. Expects 0 (controls) and 1 (cases).")
   }
   if (sum(qtile)<2*length(qtile)){ #check qtile
