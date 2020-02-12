@@ -166,7 +166,6 @@ def merge_custom(fl,sl,id_col,score_col,header):
                     count+=1
                 else:
                     ls=line.rstrip()
-                    print(ls)
                     lineList=ls.split()
                     sample_id=lineList[id_col]
                     if sample_id in ddict:
