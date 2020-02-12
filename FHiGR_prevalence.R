@@ -231,7 +231,7 @@ all<-nrow(dat)
 ## To DO: check column assumptions 
 ##subset to data with stratum available
 df2<-dat[!is.na(dat[[pheno_col]])]
-print(paste("Data dimensions after removing samples with NA phenotype:", dim(subset)[1],dim(subset)[2]))
+print(paste("Data dimensions after removing samples with NA phenotype:", dim(df2)[1],dim(df2)[2]))
 
 strat0<-nrow(df2[df2[[strat_col]]==0,])
 strat1<-nrow(df2[df2[[strat_col]]==1,])
