@@ -171,16 +171,12 @@ prev_per_quantile<-function(df,GRS_col,prev_col,qtile){
 
 
 ## plot prevalence per GRS quantile bin, color by stratum if stratum==TRUE
-plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1,all,strat0,strat1){
+plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,all,strat0,strat1,ydf){
     #dat has columns  prev          se    n    tiles  q stratum percents lower_tile upper_tile
     dat$frac<-as.numeric(sub("%","",dat$percents)) #convert factor percentages to numeric
     dat<-dat[dat$frac!=1.00,]
     dat$ub<-dat$prev+(1.96*dat$se)
     dat$lb<-dat$prev-(1.96*dat$se)
-
-    if (ymax==1){ # if ymax is not given to function, just plot to scale of data, otherwise, script can be given custom ymax to match scale of another plot
-        ymax=max(dat$prev)
-    }
 
     if (stratum==TRUE){ #stratify
         dat$stratum<-as.factor(as.character(dat$stratum))
@@ -190,6 +186,7 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1,all
         by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
            function (x) {
                name=unique(x$q)
+               ymax<-ydf[ydf$q==unique(x$q),]$ymax
                if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
                pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5,useDingbats=FALSE)
                print(ggplot(x,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$lb,ymax=x$ub)) +
@@ -204,6 +201,7 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,ymax=1,all
         by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
            function (x) {
                name=unique(x$q)
+               ymax<-ydf[ydf$q==unique(x$q),]$ymax
                if (unique(x$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=x$frac}
                pdf(file=paste(sep=".",out,name,"pdf"),height=5,width=5,useDingbats=FALSE)
                print(ggplot(x,aes(x=frac,y=prev,color=as.factor(1))) + geom_point() +
@@ -293,14 +291,19 @@ for (i in 1:size){ #across q-quantiles
 #print(sdf)
 #print(qdf)
 
-ymax<-max(max(qdf$prev+(1.96*qdf$se)),max(sdf$prev+(1.96*sdf$se)))
+##make y max df so we hve the same y axis across stratify first, quantile first, and no stratify for comparison (can differ across quantiles)
+ydf<-data.frame("ymax"=unlist(lapply(quantiles,function(x) max(qdf[qdf$q==x,]$prev+(1.96*qdf[qdf$q==x,]$se),sdf[sdf$q==x,]$prev+(1.96*sdf[sdf$q==x,]$se)))))
+ydf$q<-quantiles
+##ymax<-max(max(qdf$prev+(1.96*qdf$se)),max(sdf$prev+(1.96*sdf$se)))
+##ymax to pass to function, deprecated, now calculates max per quantile in the function
+
 file_name<-paste(sep=".",out,"quantileFirst.txt")
 write.table(format(qdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(qdf,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlabel,ylabel,legend,ymax,all,strat0,strat1)
+plotting(qdf,paste(sep="_",out,"quantileFirst"),quantiles,TRUE,main,xlabel,ylabel,legend,all,strat0,strat1,ydf)
 
 file_name<-paste(sep=".",out,"stratifyFirst.txt")
 write.table(format(sdf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(sdf,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlabel,ylabel,legend,ymax,all,strat0,strat1)
+plotting(sdf,paste(sep="_",out,"stratifyFirst"),quantiles,TRUE,main,xlabel,ylabel,legend,all,strat0,strat1,ydf)
 
 ##calculate quantiles for all data, no stratification
 aobj<-lapply(quantiles,prev_per_quantile,df=subset,GRS_col=grs_col,prev_col=pheno_col)
@@ -321,7 +324,7 @@ for (i in 1:size){ #across q-quantiles
 }
 file_name<-paste(sep=".",out,"noStratify.txt")
 write.table(format(adf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,sep="\t")
-plotting(adf,paste(sep="_",out,"all"),quantiles,FALSE,main,xlabel,ylabel,legend,ymax,all,strat0,strat1)
+plotting(adf,paste(sep="_",out,"all"),quantiles,FALSE,main,xlabel,ylabel,legend,all,strat0,strat1,ydf)
 
 ################## Estimate FHiGRS and plot prevalence per quantile  ###################
 
@@ -357,7 +360,7 @@ for (q in 1:length(quantiles)){
         fobj_df<-fobj_df[fobj_df$frac!=1.00,]
         fobj_df$ub<-fobj_df$prev+(1.96*fobj_df$se)
         fobj_df$lb<-fobj_df$prev-(1.96*fobj_df$se)
-        ymax<-max(fobj_df$prev) #this may need to be changed
+        ymax<-max(fobj_df$prev+1.96*fobj_df$se) #this may need to be changed
         fobj_df$stratum<-as.factor(fobj_df$stratum)
         levels(fobj_df$stratum)<-c("Negative","Positive")
         if (unique(fobj_df$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=fobj_df$frac}
