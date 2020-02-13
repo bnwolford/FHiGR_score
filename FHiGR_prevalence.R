@@ -233,6 +233,12 @@ all<-nrow(dat)
 df2<-dat[!is.na(dat[[pheno_col]])]
 print(paste("Data dimensions after removing samples with NA phenotype:", dim(df2)[1],dim(df2)[2]))
 
+
+##make suer strat and pheno columns are integers
+dat[[strat_col]]<-as.integer(dat[[strat_col]])
+dat[[pheno_col]]<-as.integer(dat[[pheno_col]])
+
+
 strat0<-nrow(df2[df2[[strat_col]]==0,])
 strat1<-nrow(df2[df2[[strat_col]]==1,])
 stratNA<-nrow(df2[is.na(df2[[strat_col]]),])
