@@ -90,6 +90,12 @@ header<-arguments$options$header
 dat<-fread(file,header=header)
 print(paste("Data dimensions are:",dim(dat)[1],dim(dat)[2]))
 
+
+##make suer strat and pheno columns are integers
+dat[[strat_col]]<-as.integer(dat[[strat_col]])
+dat[[pheno_col]]<-as.integer(dat[[pheno_col]])
+
+
 #print(table(dat[[strat_col]],useNA="always"))
 n<-nrow(dat)
 strat0<-nrow(dat[dat[[strat_col]]==0,])
