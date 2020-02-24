@@ -181,6 +181,7 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,all,strat0
     if (stratum==TRUE){ #stratify
         dat$stratum<-as.factor(as.character(dat$stratum))
         dat$stratum<-relevel(dat$stratum,"1")
+        print(levels(dat$stratum))
         levels(dat$stratum)<-c("Positive","Negative")
 #        levels(dat$stratum)<-c("Negative","Positive") #change labels from 0/1
         by(dat, dat$q, #number of q-quantiles (e.g. break data into 4 bins, 10 bins, etc.)
@@ -217,6 +218,32 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,all,strat0
     }
 }
 
+## calculate prevalene for all positive negative and missing and plot
+prev_by_stratum<-function(df,strat_col,prev_col,out,main,ylabel){
+    strat_class<-c("all","positive","negative","missing")
+    values<-list(c(0,1),1,0,NA) #stratum values
+    prevalences<-rep(NA,length(strat_class))
+    ns<-rep(NA,length(strat_class))
+    ses<-rep(NA,length(strat_class))
+    ubs<-rep(NA,length(strat_class))
+    lbs<-rep(NA,length(strat_class))
+    for (i in 1:length(strat_class)){
+        prev_list<-df[df[[strat_col]] %in% values[[i]]][[prev_col]]
+        prevalences[i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
+        ns[i]<-length(prev_list)
+        ses[i]<-sqrt((prevalences[i]*(1-prevalences[i]))/length(prev_list)) #what is SE for this prevalence
+        ubs[i]<-prevalences[i]+(1.96*ses[i])
+        lbs[i]<-prevalences[i]-(1.96*ses[i])
+    }
+    print(prevalences)
+    sdf<-data.frame(prev=prevalences,se=ses,n=ns,ub=ubs,lb=lbs,strat_class=strat_class)
+    print(sdf)
+    pdf(file=paste(sep=".",out,"prev_by_stratum","pdf"),height=5,width=5,useDingbats=FALSE)
+    print(ggplot(sdf,aes(x=strat_class,y=prev)) + geom_point() + theme_bw() +
+          geom_errorbar(aes(ymin=sdf$lb,ymax=sdf$ub)) +
+          labs(title=main) + xlab("Stratum") + ylab(ylabel))
+    dev.off()
+}
 
 ###########################################################
 #################### MAIN #################################
@@ -233,6 +260,8 @@ all<-nrow(dat)
 df2<-dat[!is.na(dat[[pheno_col]])]
 print(paste("Data dimensions after removing samples with NA phenotype:", dim(df2)[1],dim(df2)[2]))
 
+#plot the prevalences across all, missing, negative, positive
+prev_by_stratum(df=df2,strat_col=strat_col,prev_col=pheno_col,out=out,main=main,ylabel=ylabel)
 
 ##make suer strat and pheno columns are integers
 dat[[strat_col]]<-as.integer(dat[[strat_col]])
@@ -245,6 +274,7 @@ stratNA<-nrow(df2[is.na(df2[[strat_col]]),])
 
 subset<-df2[!is.na(df2[[strat_col]])]
 print(paste("Data dimensions after removing samples with NA stratum:",dim(subset)[1],dim(subset)[2]))
+
 
 ############# Prevalences versus GRS#############
 ## uses prev_per_quantile_stratum and prev_per_quantile functions
