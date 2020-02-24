@@ -238,7 +238,7 @@ prev_by_stratum<-function(df,strat_col,prev_col,out,main,ylabel){
     print(prevalences)
     sdf<-data.frame(prev=prevalences,se=ses,n=ns,ub=ubs,lb=lbs,strat_class=strat_class)
     print(sdf)
-    pdf(file=paste(sep=".",out,"prev_by_stratum","pdf"),height=5,width=5,useDingbats=FALSE)
+    pdf(file=paste(sep=".",out,"prev_by_stratum","pdf"),height=4,width=4,useDingbats=FALSE)
     print(ggplot(sdf,aes(x=strat_class,y=prev)) + geom_point() + theme_bw() +
           geom_errorbar(aes(ymin=sdf$lb,ymax=sdf$ub)) +
           labs(title=main) + xlab("Stratum") + ylab(ylabel))
