@@ -10,6 +10,7 @@ library(data.table)
 library(gridExtra)
 library(RNOmni)
 library(optparse)
+library(patchwork)
 
 print(Sys.time())
 print(sessionInfo())
@@ -158,9 +159,45 @@ ggplot(dat,aes(x=get(names(dat)[age_col]),fill=strat)) + geom_histogram(alpha=0.
     scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
 dev.off()
 
+##proportion of positive strata per age bin 
+dat$bin<-cut(dat[[age_col]],breaks=c(15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+age_bins<-unique(dat$bin)
+age_df<-data.frame(matrix(NA,nrow=length(age_bins),ncol=11))
+for (i in 1:length(age_bins)){
+    sub<-dat[dat$bin==age_bins[i],] #subset to age
+    if (nrow(sub) > 100) { #if more than 30 samples in the bin we can analyze it
+        prop<-nrow(sub[sub[[strat_col]]==1,])/nrow(sub) #proportion of stratum 1 with 0/1/NA as denominator
+        se<-sqrt((prop*(1-prop))/nrow(sub)) #standard error
+        ub<-prop+(1.96*se)
+        lb<-prop-(1.96*se)
+        sub_woNA<-sub[!is.na(sub[[strat_col]]),] #remove the NA strat
+        prop_woNA<-nrow(sub_woNA[sub_woNA[[strat_col]]==1,])/nrow(sub_woNA) #proportion of stratum 1 with 0/1 as denominator
+        se_woNA<-sqrt((prop_woNA*(1-prop_woNA))/nrow(sub_woNA)) #standard error
+        ub_woNA<-prop_woNA+(1.96*se_woNA)
+        lb_woNA<-prop_woNA-(1.96*se_woNA)
+        age_df[i,]<-c(prop,nrow(sub),se,lb,ub,prop_woNA,nrow(sub_woNA),se_woNA,lb_woNA,ub_woNA,as.character(age_bins[i]))
+    } else { #empty bin
+        age_df[i,]<-c(rep(NA,11),as.character(age_bins[i]))
+    }
+}
+names(age_df)<-c("prop","n","se","lb","ub","prop_woNA","n_woNA","se_woNA","lb_woNA","ub_woNA","age_bin")
+age_df[c(1:10)]<-sapply(age_df[c(1:10)],as.numeric) #make values numeric
+dat[dat[[age_col]]>70,]
+##plot
+pdf_fn<-paste(sep=".",out,"strata_by_age.pdf")
+pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
+p1<-ggplot(age_df,aes(x=age_bin,y=prop)) + geom_point(aes(size=n)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb,ymax=age_df$ub)) +
+    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.title="N")
+p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb_woNA,ymax=age_df$ub_woNA)) +
+    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History without NA samples") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.title="N")
+p1+p2                                                                                
+dev.off()
 
+######### CURRENT AGE ###########
 ## estimated current age for 0/1/NA (NA facet is not on the same scale though)
-dat$current_age<-2019-dat[[birthYear_col]]
+dat$current_age<-2020-dat[[birthYear_col]]
 pdf_fn<-paste(sep=".",out,"currentAge.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat,aes(x=current_age,fill=strat)) + geom_density(alpha=0.5,position="identity")  + theme_bw()  +
