@@ -211,7 +211,7 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
         dosage_scores_sum=np.sum(query_results*weight_list[:,np.newaxis],axis=0) #sum down columns after muliplying weights row-wise
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
-        print >> sys.stderr, "%d of %d markers in the weight file found in VCF\n" % (marker_count,max_marker)
+        print >> sys.stderr, "%d of %d markers in the weight file found in VCF. Note: Region file may have fewer coordinates than weights file, and the region file was used to query the VCF.\n" % (marker_count,max_marker)
         #f.wait()
         
     except KeyboardInterrupt:
