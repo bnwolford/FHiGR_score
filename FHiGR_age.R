@@ -196,9 +196,9 @@ p1<-ggplot(age_df,aes(x=age_bin,y=prop)) + geom_point(aes(size=n)) + theme_bw() 
     xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
 p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb_woNA,ymax=age_df$ub_woNA)) +
-    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin without NA samples") +
+    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin without NA samples") + 
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
-p1+p2
+p1+p2+plot_annotation(title=main)
 dev.off()
 
 age_df<-age_df[complete.cases(age_df),]
@@ -212,9 +212,9 @@ p3<-ggplot(age_df,aes(x=age_bin,y=cumprop))  + geom_point(aes(size=n)) + theme_b
     xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
 p4<-ggplot(age_df,aes(x=age_bin,y=cumprop_woNA)) + geom_point(aes(size=n_woNA)) +  theme_bw() +
-    xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin without NA samples") +
+    xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin without NA samples") + 
      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
-p3+p4
+p3+p4 +plot_annotation(title=main)
 dev.off()
 
 ######### CURRENT AGE ###########
