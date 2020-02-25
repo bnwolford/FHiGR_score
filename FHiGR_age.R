@@ -80,7 +80,13 @@ header<-arguments$options$header
 #################### FUNCTIONS #############################
 ###########################################################
 
-
+#calculates 95% CI from a proportion
+CI<-function(prop,n){
+    se<-sqrt((prop*(1-prop))/n) #standard error
+    ub<-prop+(1.96*se)
+    lb<-prop-(1.96*se)
+    return(c(n,se,lb,ub))
+}
 
 
 ###########################################################
@@ -114,6 +120,7 @@ dev.off()
 
 dat$strat<-as.factor(dat[[strat_col]]) #make factor
 dat$strat<-relevel(dat$strat,"1") #reorder to 1, 0, NA
+### TO DO: dynamically put the smaller sample size as the top color 
 
 ##age at time of self report and family history for 1/0
 pdf_fn<-paste(sep=".",out,"age_stratify.pdf")
@@ -166,33 +173,48 @@ age_df<-data.frame(matrix(NA,nrow=length(age_bins),ncol=11))
 for (i in 1:length(age_bins)){
     sub<-dat[dat$bin==age_bins[i],] #subset to age
     if (nrow(sub) > 100) { #if more than 30 samples in the bin we can analyze it
-        prop<-nrow(sub[sub[[strat_col]]==1,])/nrow(sub) #proportion of stratum 1 with 0/1/NA as denominator
-        se<-sqrt((prop*(1-prop))/nrow(sub)) #standard error
-        ub<-prop+(1.96*se)
-        lb<-prop-(1.96*se)
-        sub_woNA<-sub[!is.na(sub[[strat_col]]),] #remove the NA strat
-        prop_woNA<-nrow(sub_woNA[sub_woNA[[strat_col]]==1,])/nrow(sub_woNA) #proportion of stratum 1 with 0/1 as denominator
-        se_woNA<-sqrt((prop_woNA*(1-prop_woNA))/nrow(sub_woNA)) #standard error
-        ub_woNA<-prop_woNA+(1.96*se_woNA)
-        lb_woNA<-prop_woNA-(1.96*se_woNA)
-        age_df[i,]<-c(prop,nrow(sub),se,lb,ub,prop_woNA,nrow(sub_woNA),se_woNA,lb_woNA,ub_woNA,as.character(age_bins[i]))
+        prop<-nrow(sub[sub[[strat_col]]==1,])/nrow(sub) #proportion of stratum 1 with 0/1/NA as denominator in the bin
+        sub_woNA<-sub[!is.na(sub[[strat_col]]),]
+        prop_woNA<-nrow(sub_woNA[sub_woNA[[strat_col]]==1,])/nrow(sub_woNA) #proportion of stratum 1 with 0/1 as denominator in the bin
+##CI function gives n, se, lb, ub
+        age_df[i,]<-c(prop,CI(prop,nrow(sub)),
+                      prop_woNA,CI(prop_woNA,nrow(sub_woNA)),
+                      as.character(age_bins[i]))
     } else { #empty bin
-        age_df[i,]<-c(rep(NA,11),as.character(age_bins[i]))
+        age_df[i,]<-c(rep(NA,10),as.character(age_bins[i]))
     }
 }
-names(age_df)<-c("prop","n","se","lb","ub","prop_woNA","n_woNA","se_woNA","lb_woNA","ub_woNA","age_bin")
+names(age_df)<-c("prop","n","se","lb","ub",
+                 "prop_woNA","n_woNA","se_woNA","lb_woNA","ub_woNA",
+                 "age_bin")
 age_df[c(1:10)]<-sapply(age_df[c(1:10)],as.numeric) #make values numeric
-dat[dat[[age_col]]>70,]
+
 ##plot
-pdf_fn<-paste(sep=".",out,"strata_by_age.pdf")
+pdf_fn<-paste(sep=".",out,"prop_strata_by_age.pdf")
 pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
 p1<-ggplot(age_df,aes(x=age_bin,y=prop)) + geom_point(aes(size=n)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb,ymax=age_df$ub)) +
-    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.title="N")
+    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
 p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb_woNA,ymax=age_df$ub_woNA)) +
-    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History without NA samples") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.title="N")
-p1+p2                                                                                
+    xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin without NA samples") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+p1+p2
+dev.off()
+
+age_df<-age_df[complete.cases(age_df),]
+age_df<-age_df[order(age_df$age_bin),]
+age_df$cumprop<-cumsum(age_df$prop/sum(age_df$prop))
+age_df$cumprop_woNA<-cumsum(age_df$prop_woNA/sum(age_df$prop_woNA))
+print(age_df)
+pdf_fn<-paste(sep=".",out,"cumulprop_strata_by_age.pdf")
+pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
+p3<-ggplot(age_df,aes(x=age_bin,y=cumprop))  + geom_point(aes(size=n)) + theme_bw() +
+    xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+p4<-ggplot(age_df,aes(x=age_bin,y=cumprop_woNA)) + geom_point(aes(size=n_woNA)) +  theme_bw() +
+    xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin without NA samples") +
+     theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+p3+p4
 dev.off()
 
 ######### CURRENT AGE ###########
