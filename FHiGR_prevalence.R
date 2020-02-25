@@ -234,6 +234,7 @@ prev_by_stratum<-function(df,strat_col,prev_col,out,main,ylabel){
         ses[i]<-sqrt((prevalences[i]*(1-prevalences[i]))/length(prev_list)) #what is SE for this prevalence
         ubs[i]<-prevalences[i]+(1.96*ses[i])
         lbs[i]<-prevalences[i]-(1.96*ses[i])
+
     }
     print(prevalences)
     sdf<-data.frame(prev=prevalences,se=ses,n=ns,ub=ubs,lb=lbs,strat_class=strat_class)
