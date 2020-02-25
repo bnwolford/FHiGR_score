@@ -119,14 +119,22 @@ dev.off()
 
 
 dat$strat<-as.factor(dat[[strat_col]]) #make factor
-dat$strat<-relevel(dat$strat,"1") #reorder to 1, 0, NA
-### TO DO: dynamically put the smaller sample size as the top color 
 
+##dynamically put the smaller sample size as the top color 
+if (strat1>strat0){ #plot bigger sample on bottom (first)
+    dat$strat<-relevel(dat$strat,"1")
+    colors<-c("dark blue","goldenrod")
+    labels<-c("Positive","Negative")
+} else {
+    dat$strat<-relevel(dat$strat,"0")
+    colors<-c("goldenrod","dark blue")
+    labels<-c("Negative","Positive")
+}
 ##age at time of self report and family history for 1/0
 pdf_fn<-paste(sep=".",out,"age_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat[!is.na(dat$strat)],aes(x=get(names(dat)[age_col]),fill=strat)) + geom_density(alpha=0.5) + theme_bw() +
-    scale_fill_manual(values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative")) +
+ggplot(dat[!is.na(dat$strat)],aes(x=get(names(dat)[age_col]),fill=strat)) + geom_density(alpha=0.7) + theme_bw() +
+    scale_fill_manual(values=colors,name=legend,labels=labels) +
     labs(x="Enrollment Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
@@ -134,7 +142,7 @@ dev.off()
 ## birth year distribution stratified
 pdf_fn<-paste(sep=".",out,"birthYear_stratify.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat[!is.na(dat$strat)],aes(x=get(names(dat)[birthYear_col]),fill=strat)) + geom_density(alpha=0.5) + theme_bw() + scale_fill_manual(values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative")) +
+ggplot(dat[!is.na(dat$strat)],aes(x=get(names(dat)[birthYear_col]),fill=strat)) + geom_density(alpha=0.7) + theme_bw() + scale_fill_manual(values=colors,name=legend,labels=labels) +
     labs(x="BirthYear",caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)),title=main)+
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
@@ -142,7 +150,7 @@ dev.off()
 ##age at time of self report and family history for NA (age may also be missing if FH is missing)
 pdf_fn<-paste(sep=".",out,"age_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]))) + geom_density(alpha=0.5,fill="grey") + theme_bw() +
+ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[age_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
     labs(x="Enrollment Age",caption=bquote(N['NA']~"="~.(stratNA)),tile=main) +
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
@@ -151,19 +159,19 @@ dev.off()
 ## birth yaer distirbution for samples with NA for stratum
 pdf_fn<-paste(sep=".",out,"birthYear_stratifyNA.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]))) + geom_density(alpha=0.5,fill="grey") + theme_bw() +
+ggplot(dat[is.na(dat[[strat_col]])],aes(x=get(names(dat)[birthYear_col]))) + geom_density(alpha=0.7,fill="grey") + theme_bw() +
     labs(x="Birth Year",caption=bquote(N['NA']~"="~.(stratNA)),title=main) + 
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
 dev.off()
 
 ## age at time of self report for 0/1/NA
-dat$facet<-ifelse(is.na(dat[[strat_col]]),1,0)
+dat$facet<-ifelse(is.na(dat[[strat_col]]),1,0) #make indicator variable for NA or not
 pdf_fn<-paste(sep=".",out,"age_hist.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=get(names(dat)[age_col]),fill=strat)) + geom_histogram(alpha=0.5,binwidth=1,position="identity")  + theme_bw() +
+ggplot(dat,aes(x=get(names(dat)[age_col]),fill=strat)) + geom_histogram(alpha=0.7,binwidth=1,position="identity")  + theme_bw() +
     labs(x="Enrollment Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main)+ facet_wrap(~facet) +
     theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) +
-    scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
+    scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
 dev.off()
 
 ##proportion of positive strata per age bin 
@@ -201,6 +209,7 @@ p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + t
 p1+p2+plot_annotation(title=main)
 dev.off()
 
+#cumulative proportion 
 age_df<-age_df[complete.cases(age_df),]
 age_df<-age_df[order(age_df$age_bin),]
 age_df$cumprop<-cumsum(age_df$prop/sum(age_df$prop))
@@ -222,24 +231,24 @@ dev.off()
 dat$current_age<-2020-dat[[birthYear_col]]
 pdf_fn<-paste(sep=".",out,"currentAge.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=current_age,fill=strat)) + geom_density(alpha=0.5,position="identity")  + theme_bw()  +
+ggplot(dat,aes(x=current_age,fill=strat)) + geom_density(alpha=0.7,position="identity")  + theme_bw()  +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
 dev.off()
 
 pdf_fn<-paste(sep=".",out,"currentAge_hist.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=current_age,fill=strat)) + geom_histogram(alpha=0.5,binwidth=1,position="identity")  + theme_bw() +
+ggplot(dat,aes(x=current_age,fill=strat)) + geom_histogram(alpha=0.7,binwidth=1,position="identity")  + theme_bw() +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
 dev.off()
 
 pdf_fn<-paste(sep=".",out,"currentAge_area.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat,aes(x=current_age,fill=strat)) + theme_bw() +
-    geom_area(aes(y = ..count.., fill = strat, group = strat), position="identity",stat = "bin",alpha=0.5) +
+    geom_area(aes(y = ..count.., fill = strat, group = strat), position="identity",stat = "bin",alpha=0.7) +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text =element_blank()) + scale_fill_manual(na.value="grey",values=c("dark blue","goldenrod"),name=legend,labels=c("Positive","Negative"))
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text =element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
 dev.off()
 
 
