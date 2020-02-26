@@ -202,10 +202,10 @@ pdf_fn<-paste(sep=".",out,"prop_strata_by_age.pdf")
 pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
 p1<-ggplot(age_df,aes(x=age_bin,y=prop)) + geom_point(aes(size=n)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb,ymax=age_df$ub)) +
     xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+    theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
 p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + theme_bw() + geom_errorbar(aes(ymin=age_df$lb_woNA,ymax=age_df$ub_woNA)) +
     xlab("Enrollment Age Bin") + ylab("Proportion of Positive Family History\n within bin without NA samples") + 
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+    theme(legend.position="bottom", axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
 p1+p2+plot_annotation(title=main)
 dev.off()
 
@@ -219,10 +219,10 @@ pdf_fn<-paste(sep=".",out,"cumulprop_strata_by_age.pdf")
 pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
 p3<-ggplot(age_df,aes(x=age_bin,y=cumprop))  + geom_point(aes(size=n)) + theme_bw() +
     xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+    theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
 p4<-ggplot(age_df,aes(x=age_bin,y=cumprop_woNA)) + geom_point(aes(size=n_woNA)) +  theme_bw() +
     xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin without NA samples") + 
-     theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
+     theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
 p3+p4 +plot_annotation(title=main)
 dev.off()
 
@@ -233,14 +233,14 @@ pdf_fn<-paste(sep=".",out,"currentAge.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat,aes(x=current_age,fill=strat)) + geom_density(alpha=0.7,position="identity")  + theme_bw()  +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels) 
 dev.off()
 
 pdf_fn<-paste(sep=".",out,"currentAge_hist.pdf")
 pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
 ggplot(dat,aes(x=current_age,fill=strat)) + geom_histogram(alpha=0.7,binwidth=1,position="identity")  + theme_bw() +
     labs(x="Estimated Current Age", caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1)~","~N['NA']~"="~.(stratNA)),title=main) + facet_wrap(~facet) +
-    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels)
+    theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10),strip.text=element_blank()) + scale_fill_manual(na.value="grey",values=colors,name=legend,labels=labels) 
 dev.off()
 
 pdf_fn<-paste(sep=".",out,"currentAge_area.pdf")
