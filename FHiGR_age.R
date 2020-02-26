@@ -219,10 +219,10 @@ pdf_fn<-paste(sep=".",out,"cumulprop_strata_by_age.pdf")
 pdf(file=pdf_fn,height=5,width=8,useDingbats=FALSE)
 p3<-ggplot(age_df,aes(x=age_bin,y=cumprop))  + geom_point(aes(size=n)) + theme_bw() +
     xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin") +
-    theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
+    theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
 p4<-ggplot(age_df,aes(x=age_bin,y=cumprop_woNA)) + geom_point(aes(size=n_woNA)) +  theme_bw() +
     xlab("Enrollment Age Bin") + ylab("Cumulative Proportion of Positive Family History\n within age bin without NA samples") + 
-     theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N") + coord_cartesian(ylim=c(0,0.5))
+     theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) + scale_size_continuous(name="N")
 p3+p4 +plot_annotation(title=main)
 dev.off()
 
