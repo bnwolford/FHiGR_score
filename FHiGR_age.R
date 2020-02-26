@@ -238,6 +238,7 @@ mtext("Number of NA samples",side=4,line=3)
 par(new=TRUE)
 plot(bp,age_df$prop_woNA,cex=0.8,pch=19,xaxt='n',ylab="Proportion of Positive Family History within Bin",ylim=c(0,1),xlab="",xlim=c(min(bp)-0.5,max(bp)+0.5))
 arrows(bp, age_df$lb_woNA, bp, age_df$ub_woNA, length=0.05, angle=90, code=3)
+title(main)
 dev.off()
 
 ##cumulative proportion 
