@@ -342,7 +342,7 @@ ggplot(subset,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_w
   geom_hline(linetype="dashed",yintercept=1,color="black") +
   labs(x="Predictor",y="Odds Ratio",title=main) + scale_color_manual(values=c(pamp[1],pamp[6]),name="Predictor") +
   theme(axis.text.x = element_text(angle = 45,hjust=1)) + 
-  geom_errorbar(ymin=subset$LB,ymax=subset$UB) 
+  geom_errorbar(aes(ymin=subset$LB,ymax=subset$UB))
 dev.off()
 
 ###### Test logistic regression by age
