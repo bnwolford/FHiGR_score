@@ -11,6 +11,7 @@ library(gridExtra)
 library(RNOmni)
 library(optparse)
 library(patchwork)
+library(LaCroixColoR)
 
 print(Sys.time())
 print(sessionInfo())
@@ -74,6 +75,11 @@ main<-arguments$options$maintitle
 legend<-arguments$options$legend
 dig<-arguments$option$digits
 header<-arguments$options$header
+
+#colors
+pamp<-lacroix_palette("Pamplemousse",type = "discrete", n=6) #6 elements
+pamp2<-c(pamp[1:6],"#8B4789") #7 elements 
+passion<-lacroix_palette("PassionFruit",type="discrete",n=6) #6 elements
 
 
 ###########################################################
@@ -177,7 +183,7 @@ dev.off()
 ##proportion of positive strata per age bin 
 dat$bin<-cut(dat[[age_col]],breaks=c(15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) #age bin breaks
 age_bins<-unique(dat$bin)
-age_df<-data.frame(matrix(NA,nrow=length(age_bins),ncol=22))
+age_df<-data.frame(matrix(NA,nrow=length(age_bins),ncol=32))
 for (i in 1:length(age_bins)){
     sub<-dat[dat$bin==age_bins[i],] #subset to age
     if (nrow(sub) > 30) { #if more than 30 samples in the bin we can analyze it
@@ -188,25 +194,30 @@ for (i in 1:length(age_bins)){
         prop_woNA<-nrow(sub_woNA[sub_woNA[[strat_col]]==1,])/nrow(sub_woNA) #proportion of sample in bin with strata 1 using 0/1 as denominator
         prop_strat1<-nrow(sub[sub[[strat_col]]==1,])/nrow(dat[dat[[strat_col]]==1,]) #proportion of total stratum 1 that is in this age bin
         prop_strat1_woNA<-nrow(sub_woNA[sub_woNA[[strat_col]]==1,])/nrow(dat_woNA[dat_woNA[[strat_col]]==1,]) #proportion of total stratum 1 that is in this age bin (excluding NA from denominator) 
-                                                                                       
+        prop_sample<-nrow(sub)/nrow(dat) #proportion of sample in bin  
+        prop_sample_woNA<-nrow(sub_woNA)/nrow(dat_woNA) #proportion of sample (without NA) in bin
         ##CI function gives n, se, lb, ub
         age_df[i,]<-c(prop,CI(prop,nrow(sub)),
                       prop_woNA,CI(prop_woNA,nrow(sub_woNA)),
                       prop_strat1,CI(prop_strat1,nrow(dat)), #not sure about N for CI here
                       prop_strat1_woNA,CI(prop_strat1_woNA,nrow(dat_woNA)), #not sure about N for CI here
+                      prop_sample,CI(prop_sample,nrow(dat)),
+                      prop_sample_woNA,CI(prop_sample_woNA,nrow(dat_woNA)),
                       n_NA,
                       as.character(age_bins[i])) 
 
     } else { #empty bin
-        age_df[i,]<-c(rep(NA,21),as.character(age_bins[i]))
+        age_df[i,]<-c(rep(NA,31),as.character(age_bins[i]))
     }
 }
 names(age_df)<-c("prop","n","se","lb","ub",
                  "prop_woNA","n_woNA","se_woNA","lb_woNA","ub_woNA",
                  "prop_strat1","n_strat1","se_strat1","lb_strat1","ub_strat1",
                  "prop_strat1_woNA","n_strat1_woNA","se_strat1_woNA","lb_strat1_woNA","ub_strat1_woNA",
+                 "prop_sample","n_sample","se_sample","lb_sample","ub_sample",
+                 "prop_sample_woNA","n_sample_woNA","se_sample_woNA","lb_sample_woNA","ub_sample_woNA",
                  "n_NA","age_bin")
-age_df[c(1:21)]<-sapply(age_df[c(1:21)],as.numeric) #make values numeric
+age_df[c(1:31)]<-sapply(age_df[c(1:31)],as.numeric) #make values numeric
 print(age_df)
 
 ##plot
@@ -223,7 +234,24 @@ p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + t
 p1+p2+plot_annotation(title=main)
 dev.off()
 
-##dual axis plot
+tmp1<-age_df[,c("prop_strat1_woNA","lb_strat1_woNA","ub_strat1_woNA","age_bin")]
+names(tmp1)<-c("proportion","lb","ub","age_bin")
+tmp1$label<-"+FH/bin"
+tmp2<-age_df[,c("prop_sample_woNA","lb_sample_woNA","ub_sample_woNA","age_bin")]
+names(tmp2)<-c("proportion","lb","ub","age_bin")
+tmp2$label<-"bin/sample"
+prop_df<-rbind(tmp1,tmp2)
+prop_df<-prop_df[complete.cases(prop_df)]
+
+pdf_fn<-paste(sep=".",out,"prop_strata_by_age_prop_in_bin.pdf")
+pdf(file=pdf_fn,height=5,width=5,useDingbats=FALSE)
+ggplot(prop_df,aes(x=age_bin,y=proportion,color=label)) + geom_point() + theme_bw() +
+  theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_errorbar(aes(ymin=prop_df$lb,ymax=prop_df$ub)) + scale_color_manual(name="Proportion",values=passion) +
+  coord_cartesian(ylim=c(0,0.75)) + labs(x="Enrollment Age Bin")
+dev.off()
+
+#dual axis plot with bar for count of NA samples
 age_df<-age_df[order(age_df$age_bin),]
 age_df<-age_df[complete.cases(age_df),]
 age_df$group<-1:nrow(age_df)
@@ -240,6 +268,7 @@ plot(bp,age_df$prop_woNA,cex=0.8,pch=19,xaxt='n',ylab="Proportion of Positive Fa
 arrows(bp, age_df$lb_woNA, bp, age_df$ub_woNA, length=0.05, angle=90, code=3)
 title(main)
 dev.off()
+
 
 ##cumulative proportion 
 age_df$cumprop<-cumsum(age_df$prop_strat1)
