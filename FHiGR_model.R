@@ -149,8 +149,8 @@ model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
   glm_df$model<-name #record model
   glm_df$subset<-subset #record what subset of data we are looking at if not all
   glm_df$pred<-row.names(glm_df)
-  #r<-ROC(df,formula,outcome,out,paste(sep="_",name)) #plot ROC
-  #auroc<-data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2])
+#  r<-ROC(df,formula,outcome,out,paste(sep="_",name)) #plot ROC
+ # auroc<-data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2])
   
   fit<- matrix(ncol=8, nrow=1)
   fit[1,1]<-glm.obj$deviance
@@ -176,7 +176,7 @@ model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
   names(fit_df)<-c("deviance","null_deviance","aic","hoslem","cox_snell_r2","max_adj_r2","Nagelkerke","Brier")
   #fit_df$cvAUC<-auroc$cvAUC
   #fit_df$AUC_LB<-auroc$LB
-  #fit_df$AUC_UB<-auroc$UB
+                                        #fit_df$AUC_UB<-auroc$UB
   fit_df$cvAUC<-NA
   fit_df$AUC_LB<-NA
   fit_df$AUC_UB<-NA
@@ -338,7 +338,7 @@ model_df_sub<-model_df[model_df$pred=="FH"|model_df$pred=="GRS",]
 #plot
 pdf_fn<-paste0(out,"_glm.pdf")
 pdf(file=pdf_fn,useDingbats=FALSE,height=5,width=8)
-ggplot(subset,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~model) + 
+ggplot(model_df_sub,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~model) + 
   geom_hline(linetype="dashed",yintercept=1,color="black") +
   labs(x="Predictor",y="Odds Ratio",title=main) + scale_color_manual(values=c(pamp[1],pamp[6]),name="Predictor") +
   theme(axis.text.x = element_text(angle = 45,hjust=1)) + 
