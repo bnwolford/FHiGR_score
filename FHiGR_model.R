@@ -137,7 +137,7 @@ model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
                             paste(colnames(df)[c(pred)],collapse="+"),
                             sep=""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
-  print(summary(glm.obj))
+#  print(summary(glm.obj))
   NAcoef<-names(which(is.na(glm.obj$coefficients))) #coefficients with NA (e.g. singularity)
   if (length(NAcoef)>0){
       pred_labels<-pred_labels[-which(NAcoef==pred_labels)] #update pred labels
@@ -333,16 +333,16 @@ for (i in 1:length(predictor_list)){
 model_df<-do.call(rbind,lapply(model_objects, function(l) l[[1]]))
 
 #subset to factors of interest
-subset<-model_df[model_df$pred=="FH"|model_df$pred=="GRS",]
+model_df_sub<-model_df[model_df$pred=="FH"|model_df$pred=="GRS",]
 
 #plot
 pdf_fn<-paste0(out,"_glm.pdf")
 pdf(file=pdf_fn,useDingbats=FALSE,height=8,width=8)
-ggplot(subset,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~model) + 
+ggplot(model_df_sub,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~model) + 
   geom_hline(linetype="dashed",yintercept=1,color="black") +
   labs(x="Predictor",y="Odds Ratio",title=main) + scale_color_manual(values=c(pamp[1],pamp[6]),name="Predictor") +
   theme(axis.text.x = element_text(angle = 45,hjust=1)) + 
-  geom_errorbar(aes(ymin=subset$LB,ymax=subset$UB))
+  geom_errorbar(aes(ymin=model_df_sub$LB,ymax=model_df_sub$UB))
 dev.off()
 
 ###### Test logistic regression by age
