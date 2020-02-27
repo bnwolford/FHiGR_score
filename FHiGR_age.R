@@ -180,7 +180,7 @@ age_bins<-unique(dat$bin)
 age_df<-data.frame(matrix(NA,nrow=length(age_bins),ncol=22))
 for (i in 1:length(age_bins)){
     sub<-dat[dat$bin==age_bins[i],] #subset to age
-    if (nrow(sub) > 100) { #if more than 30 samples in the bin we can analyze it
+    if (nrow(sub) > 30) { #if more than 30 samples in the bin we can analyze it
         prop<-nrow(sub[sub[[strat_col]]==1,])/nrow(sub) #proportion of sample  in bin with strata 1 with 0/1/NA as denominator
         dat_woNA<-dat[!is.na(dat[[strat_col]]),]
         sub_woNA<-sub[!is.na(sub[[strat_col]]),]
