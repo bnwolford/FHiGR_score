@@ -124,19 +124,24 @@ odds_ratio<-function(df,qtile=0.95,prev_col,grs_col,strat_col){
   return(c(OR,LB,UB))
 }
 
+      
 ##### test models with outcome not indicator variable 
 model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
   pred<-unlist(pred)
   pred_labels<-unlist(pred_labels)
   name<-unlist(name)
   mobj<-list() #initialize object
-  
+
   #model for covar only
   formula<-as.formula(paste(colnames(df)[outcome],"~",
                             paste(colnames(df)[c(pred)],collapse="+"),
                             sep=""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
-  #print(summary(glm.obj))
+  print(summary(glm.obj))
+  NAcoef<-names(which(is.na(glm.obj$coefficients))) #coefficients with NA (e.g. singularity)
+  if (length(NAcoef)>0){
+      pred_labels<-pred_labels[-which(NAcoef==pred_labels)] #update pred labels
+  }
   glm_df<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",pred_labels)) #this may fail if some of the covariates aren't in the data frame, To do: make a check
   glm_df$OR<-exp(glm_df$Estimate)
   glm_df$UB<-exp(glm_df$Estimate+(1.96*glm_df$Std..Error))
@@ -144,15 +149,15 @@ model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
   glm_df$model<-name #record model
   glm_df$subset<-subset #record what subset of data we are looking at if not all
   glm_df$pred<-row.names(glm_df)
-  
-  r<-ROC(df,formula,outcome,out,paste(sep="_",name)) #plot ROC
-  auroc<-data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2])
+  #r<-ROC(df,formula,outcome,out,paste(sep="_",name)) #plot ROC
+  #auroc<-data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2])
   
   fit<- matrix(ncol=8, nrow=1)
   fit[1,1]<-glm.obj$deviance
   fit[1,2]<-glm.obj$null.deviance
   fit[1,3]<-glm.obj$aic
   fit[1,4]<-hoslem.test(df[[outcome]],fitted(glm.obj))$p.value
+  
   
   #Cox-Snell pseudo R2 and max adjusted R2
   ## intercept only model 
@@ -169,9 +174,12 @@ model<-function(df,outcome,pred,pred_labels,out,name,subset=NA){
   fit[1,8]<-BrierScore(glm.obj,scaled=FALSE) #what is the range when unscaled?!
   fit_df<-data.frame(fit)
   names(fit_df)<-c("deviance","null_deviance","aic","hoslem","cox_snell_r2","max_adj_r2","Nagelkerke","Brier")
-  fit_df$cvAUC<-auroc$cvAUC
-  fit_df$AUC_LB<-auroc$LB
-  fit_df$AUC_UB<-auroc$UB
+  #fit_df$cvAUC<-auroc$cvAUC
+  #fit_df$AUC_LB<-auroc$LB
+  #fit_df$AUC_UB<-auroc$UB
+  fit_df$cvAUC<-NA
+  fit_df$AUC_LB<-NA
+  fit_df$AUC_UB<-NA
   fit_df$dev_test<-1-pchisq(fit_df$deviance,glm.obj$df.residual)
   fit_df$model<-name
   
@@ -342,7 +350,7 @@ qsub$age_bins<-cut(qsub[[part_age]],breaks=c(15,20,25,30,35,40,45,50,55,60,65,70
 bins<-unique(qsub$age_bins)
 for (b in 1:length(bins)){ #across age bins
   age_sub<-qsub[qsub$age_bins==bins[b],] #age subset
-  if (nrow(age_sub) > 30) { #if more than 30 samples in the bin we can analyze it
+  if (nrow(age_sub) > 30 && nrow(age_sub[age_sub[[pheno_col]]==0,])>0 && nrow(age_sub[age_sub[[pheno_col]]==1,])>0) { #if more than 30 samples in the bin and at least one case and one control we can analyze it
      for (i in 1:length(predictor_list)){
       obj<-model(age_sub,pheno_col,predictor_list[i],predictor_list_labels[i],out,model_name[i],bins[b])
       model_objects[[i]]<-obj
