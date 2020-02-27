@@ -33,42 +33,6 @@ print(sessionInfo())
 ###################### Functions ##########################
 ###########################################################
 
-##function to estimate FHiGRS
-#takes data frame created from prev_per_quantile_stratum object
-estimate_FHiGRS<-function(prev_df,main_df,strat_col,grs_col,out){
-  ##put q-quantiles in order of prevalence
-  ##to do: use prevalence from reference population
-  prev_df_order<-prev_df[order(prev_df$prev),]
-  prev_df_order$order<-seq.int(nrow(prev_df_order))
-  prev_df_order$ub<-prev_df_order$prev+(1.96*prev_df_order$se)
-  prev_df_order$lb<-prev_df_order$prev-(1.96*prev_df_order$se)
-  prev_df_order$tile<-as.numeric(sub("%","",prev_df_order$percents))
-  print(prev_df_order)
-  pdf(file=paste0(out,".fhigrs_prev.pdf"),height=3,width=7,useDingbats = FALSE)
-  print(ggplot(prev_df_order,aes(x=order,y=prev,color=as.factor(stratum),label=tile)) + geom_point() + geom_text(aes(label=tile),vjust=-3.5,size=2) + theme_bw() + 
-          scale_color_manual(values=c("goldenrod3","darkblue"),labels=c("Negative","Positive"),name="MI Family History") + labs(title="Ordered GRS bins by disease prevalence",x="GRS Quantile Order",y="Prevalence") + 
-          geom_errorbar(aes(ymin=lb,ymax=ub)) + coord_cartesian(ylim=c(0,0.25)))
-  dev.off()
-  
-  prev_df_order$rank<-seq(100,nrow(prev_df)*100,100) #make rankings in scale of 100
-  
-  ##assign samples to groups
-  main_df$rank<-as.numeric(1) #initialize column for FHiGRS
-  for (s in c(1,2)){
-    prev_df_order_strat<-prev_df_order[prev_df_order$stratum==(s-1),]
-    prev_df_order_strat[1,'lower_tile']<- -100 #condition to put samples equiv to minimum in bottom bin
-    for (j in 1:nrow(prev_df_order_strat)){
-      u<-prev_df_order_strat[j,'upper_tile']
-      l<-prev_df_order_strat[j,'lower_tile']
-      rank<-prev_df_order_strat[j,'rank']
-      main_df[main_df[[strat_col]]==(s-1) & main_df[[grs_col]]>l & main_df[[grs_col]]<=u,'rank']<-rank
-    }
-  }
-  main_df$grs_rank<-main_df[[grs_col]] + main_df$rank #add rank to GRS
-  main_df$FHIGRS<-qnorm((rank(main_df$grs_rank,na.last="keep")-0.5)/sum(!is.na(main_df$grs_rank))) #new FHIGRS
-  return(main_df)
-}
-
 
 ##quantile is how many divisions we should make of dataset (e.g. 20-quantile is ventiles for 20 groups)
 ##returns object with prevalences and standard error for distribution 
@@ -90,11 +54,13 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
   prevalences<-matrix(NA,2,qtile+1) #initialize prevalence matrix
   ns<-matrix(NA,2,qtile+1) #initialize count matrix
   ses<-matrix(NA,2,qtile+1)#initialize se matrix
-  
+  ts<-matrix(NA,2,qtile+1) #initialize tiles matrix
   if (qfirst==TRUE){ #calculate quantiles before stratification
     tiles<-quantile(df[[GRS_col]],seq(from=0,to=1,by=p)) #quantile values
     for (i in 1:length(index)-1) {
       for (r in c(1,2)){ #iterate over stratum
+        percents<-names(tiles)
+        ts[r,]<-tiles
         prev_list<-df[df[[GRS_col]] > tiles[i] & df[[GRS_col]] <= tiles[i+1] & df[[strat_col]]==(r-1)][[prev_col]]
         prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
         ns[r,i]<-length(prev_list)
@@ -105,6 +71,8 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
     for (r in c(1,2)){ #iterate over stratum
       sdf<-df[df[[strat_col]]==(r-1),] #make data set for one stratum
       tiles<-quantile(sdf[[GRS_col]],seq(from=0,to=1,by=p)) #quantile values
+      ts[r,]<-tiles
+      percents<-names(tiles)
       for (i in 1:length(index)-1) {
         prev_list<-sdf[sdf[[GRS_col]] > tiles[i] & sdf[[GRS_col]] <= tiles[i+1]][[prev_col]]
         prevalences[r,i]<-sum(prev_list)/length(prev_list) #how many affected in given quantile
@@ -114,7 +82,7 @@ prev_per_quantile_stratum<-function(df,GRS_col,prev_col,strat_col,qtile,qfirst=F
     }
   }
   #create object 
-  pqs<-list(prev=prevalences,se=ses,i=index,n=ns,tiles=tiles)
+  pqs<-list(prev=prevalences,se=ses,i=index,n=ns,tiles=ts,percents=percents)
   class(pqs)<-"prev_quantile_stratum_obj"
   return(pqs)
 }
@@ -136,26 +104,27 @@ odds_ratio<-function(df,qtile=0.95,prev_col,grs_col,strat_col){
 }
 
 ##### test models with outcome not indicator variable 
-model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int){
+model<-function(df,grs_col,strat_col,pheno_col,covar,out,name,FH_int){
   mobj<-list() #initialize object
   auroc<-data.frame() #initialize AUROC list 
   
   ## inverse rank normalize GRS in the population of interest because FHIGRS is inv normal scale
   df$invNormGRS<-rankNorm(df[[grs_col]])
   grs_col<-which(names(df)=="invNormGRS") #new GRS col
- 
+  
   #model for covar only
   formula<-as.formula(paste(colnames(df)[pheno_col],"~",
                             paste(colnames(df)[c(covar)],collapse="+"),
                             sep=""))
   glm.obj<-glm(formula=formula,data=df,family="binomial")
+  print(summary(glm.obj))
   cdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar))
   mobj[["covar_only"]]<-cdf
   conly<-glm.obj
   #auroc<-append(auroc,my_ROC_plot(df,formula,out,paste(sep="_",name,"covar_only")))
   r<-ROC_v2(df,formula,pheno_col,out,paste(sep="_",name,"covar_only"))
   auroc<-rbind(auroc,data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2]))
- 
+  
   #model for GRS
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
                             paste(colnames(df)[c(covar,grs_col)], collapse = "+"),
@@ -168,17 +137,6 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
   r<-ROC_v2(df,formula,pheno_col,out,paste(sep="_",name,"covar_only"))
   auroc<-rbind(auroc,data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2]))
   
-  ## model for FHIGRS
-  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
-                            paste(colnames(df)[c(covar,fhigrs_col)], collapse = "+"),
-                            sep = ""))
-  glm.obj<-glm(formula=formula,data=df,family="binomial")
-  fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"FHIGRS"))
-  mobj[["FHiGRS"]]<-fdf
-  fhigrs<-glm.obj
-  #auroc<-append(auroc,my_ROC_plot(df,formula,out,paste(sep="_",name,"FHIGRS")))
-  r<-ROC_v2(df,formula,pheno_col,out,paste(sep="_",name,"covar_only"))
-  auroc<-rbind(auroc,data.frame(cvAUC=r$cvAUC,se=r$se,LB=r$ci[1],UB=r$ci[2]))
   
   ## model for family history + GRS with interaction term
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
@@ -232,7 +190,7 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
                               sep = ""))
     glm.obj<-glm(formula=formula,data=df,family="binomial")
     #colnames(df)[FH_int]<-"FH_interaction_term"
-  
+    
     fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar2,"FH","FH_int","FH*FH_int")) #generalized so FH_int can be anything
     mobj[["FH_interaction"]]<-fdf
     fh_int<-glm.obj
@@ -245,8 +203,8 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
   #fit <- glm(df[[pheno_col]]~a,family=binomial)
   ## compare goodness of model fit 
   if (!is.null(FH_int)){
-    model_list<-c("conly","grs","fhigrs","int","add","fh","fh_int")
-  } else { model_list<-c("conly","grs","fhigrs","int","add","fh")
+    model_list<-c("conly","grs","int","add","fh","fh_int")
+  } else { model_list<-c("conly","grs","int","add","fh")
   }
   fit<- matrix(ncol=8, nrow=length(model_list))
   for (i in 1:length(model_list)){
@@ -276,9 +234,9 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
   fit_df$AUC_UB<-auroc$UB
   fit_df$dev_test<-1-pchisq(fit_df$deviance,get(model_list[i])$df.residual)
   if (!is.null(FH_int)){
-    fit_df$model<-c("covar_only","GRS","FHiGRS","GRS*FH","GRS+FH","FH","FH_int")
+    fit_df$model<-c("covar_only","GRS","GRS*FH","GRS+FH","FH","FH_int")
   } else {
-    fit_df$model<-c("covar_only","GRS","FHiGRS","GRS*FH","GRS+FH","FH")
+    fit_df$model<-c("covar_only","GRS","GRS*FH","GRS+FH","FH")
   }
   
   file_n<-paste(sep=".",out,name,"modelGOF.txt")
@@ -287,8 +245,7 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
   ## anova comparing to additive model
   anova_df<-rbind(
     data.frame(dev=anova(add,grs,test="LRT")$Deviance[2],pval=anova(add,grs,test="LRT")$`Pr(>Chi)`[2],method="GRS"),
-    data.frame(dev=anova(add,fh,test="LRT")$Deviance[2],pval=anova(add,fh,test="LRT")$`Pr(>Chi)`[2],method="FH"),
-    data.frame(dev=anova(add,fhigrs,test="LRT")$Deviance[2],pval=anova(add,fhigrs,test="LRT")$`Pr(>Chi)`[2],method="FHiGRS"))
+    data.frame(dev=anova(add,fh,test="LRT")$Deviance[2],pval=anova(add,fh,test="LRT")$`Pr(>Chi)`[2],method="FH"))
   file_n<-paste(sep=".",out,name,"compareToAdditive.txt")
   write.table(format(anova_df,digits=dig),file=file_n,quote=FALSE,row.names=FALSE,sep="\t")
   
@@ -298,7 +255,7 @@ model<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,covar,out,name,FH_int)
 }
 
 #indicator variable used for outcome Y/N in top X-tile
-model_indicator<-function(df,value,fhigrs_col,grs_col,strat_col,pheno_col,covar,qfirst=FALSE){
+model_indicator<-function(df,value,grs_col,strat_col,pheno_col,covar,qfirst=FALSE){
   if (value < 0.5 | value >= 1){
     print("Percentile for dividing GRS/FHiGRS distribution must be >= 0.5 < 1 ")
   }
@@ -369,24 +326,6 @@ model_indicator<-function(df,value,fhigrs_col,grs_col,strat_col,pheno_col,covar,
   cdf$nagelkerke<-PseudoR2(glm.obj,which="all")[["Nagelkerke"]]
   mobj[["conditional"]]<-cdf
   
-  
-  ##model using I(FHiGRS dist)
-  q<-quantile(df[[fhigrs_col]],value) #quantile in all data
-  #top of bottom of distribution as binary variable, bottom as reference group
-  df$fhigrs<-2
-  df$fhigrs<-ifelse(df[[fhigrs_col]]>q,1,0) #1 if in top, 0 in bottom
-  df[df$fhigrs==2]$dist<-NA
-  df$dist<-df$fhigrs #replace I(GRS dist) with I(FHiGRS dist)
-  formula<-as.formula(paste(colnames(df)[pheno_col], "~",
-                            paste(colnames(df)[c(covar,dist_col)], collapse = "+"),
-                            sep = ""))
-  glm.obj<-glm(formula=formula,data=df,family="binomial")
-  fdf<-data.frame(summary(glm.obj)$coefficients,row.names=c("Int",covar,"dist")) #all
-  m<-matrix(table(df$dist,df[[pheno_col]]),byrow=FALSE,nrow=2)
-  fdf$bottom_prev<-m[1,2]/sum(m[1,]) #prevalence in bottom of distribution
-  fdf$top_prev<-m[2,2]/sum(m[2,]) #prevalence in top of distribution
-  fdf$nagelkerke<-PseudoR2(glm.obj,which="all")[["Nagelkerke"]]
-  mobj[["FHIGRS"]]<-fdf
   
   ##model using I(FH) NOT REALLY A CUT POINT JUST ZERO or ONE
   formula<-as.formula(paste(colnames(df)[pheno_col], "~",
@@ -495,157 +434,71 @@ ROC_v2<-function(qsub,formula,pheno_col,out,name,V=5){
 
 
 
-
-######## T2D in HUNT
-t2d<-fread("T2D_pheno_GRS_ext.txt")
-batch<-11
-grs<-3
-pheno<-19
-fh<-21
-sex<-9
-birthYear<-10
-pcs<-c(12,13,14,15)
-new_fh<-43
-part_age<-44
-out<-"HUNT.T2D"
-#### extended HUNT variables for testing
-full<-fread("full_pheno.txt")
-full<-full[,c(1:53,121,138)]
-new_t2d<-merge(t2d,full,by.x="V1",by.y="IID")
-new_fh<-145
-part_age<-147
-bmi<-149
-whr<-150
-new_fh_2<-146 #2nd degree
-part_age_2<-148
-
-
-########## MI in HUNT
-#should I use CAD as phenotype?
-mi<-fread("MI_LDL_pheno_GRS_ext.txt")
-#mi<-fread("MI_LDL_pheno_GRS_v2.txt")
-#mi<-fread("pheno_files/temporary_pheno_CVD.tab",header=TRUE)
-batch<-9
-grs<-3
-pheno<-15
-fh<-16
-sex<-7
+############# T2D in UKBB
+t2d<-fread("pheno_files/UKBB_Type2Diabetes_PRS_LDpred_rho0.01_allchr.scores_pheno.txt")
+batch<-6 #use genotyping array instead of actual batch, too many batches
+part_age<-91
+fh<-69
 birthYear<-8
-pcs<-c(10,11,12,13)
-new_fh<-35
-part_age<-36
-whr<-94
-hdl<-95
-ldl<-96
-sbp<-99
-htn<-100
-t2d<-101
-cur_smok<-97
-out<-"HUNT.MI"
+pcs<-c(9,10,11,12)
+sex<-7
+pheno<-26
+grs<-3
+out<-"UKBB.T2D"
 
-###### variables
+############# CAD in UKBB
+cad<-fread("pheno_files/UKBB_CoronaryArteryDisease_PRS_LDpred_rho0.001_allchr.scores_pheno.txt")
+batch<-6 #use genotyping array instead of actual batch, too many batches
+part_age<-91
+fh<-34
+birthYear<-8
+pcs<-c(9,10,11,12)
+sex<-7
+pheno<-21
+grs<-3
+out<-"UKBB.CAD"
+
+##variables
 cutpt<-0.9
 quantiles<-c(20) ##  To do: test with more 
 censor<-FALSE
 young<-FALSE
-#dat<-bc
-#dat<-mi
-dat<-t2d
-#dat<-new_t2d
+#dat<-t2d
+dat<-cad
 out<-out
-strat_col<-new_fh
+strat_col<-fh
 pheno_col<-pheno
 grs_col<-grs
 dig<-3
 
 #fh is 1 for yes, 0 for no, NA for missing/unknown
-#new fh is 2 of yes, 1 for no, 0 for unknown, NA for missing (fix)
+# fh is 1 for yes, 0 for no, NA for unknown/missing
 
 #########################################################
 
-##Percent of individuals in each age category with a positive family history.
-
-##The odds ratio for top 5% with a positive family history with in each age category bin.
-
-#age at time of self report for everyone
-pdf_fn<-paste(sep=".",out,"age_at_SR.pdf")
-pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
-ggplot(dat,aes(x=get(names(dat)[part_age]))) + geom_density(fill="black",alpha=0.75) + theme_bw() + 
-  labs(x="Enrollment age") +  
-  theme(title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
-dev.off()
-
-#age at time of self report and family history
-pdf_fn<-paste(sep=".",out,"age_at_SR_all.pdf")
-pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=get(names(dat)[part_age]),fill=factor(get(names(dat)[new_fh])))) + geom_density(alpha=0.7) + theme_bw() + 
-  scale_fill_manual(values=c("grey","goldenrod","dark blue"),name="Family History",labels=c("Missing/Unknown","Negative","Positive")) + 
-  labs(x="Enrollment Age") +  theme(legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
-dev.off()
-
-#age at time of 2nd degree relative self report and family history 
-if (exists(new_fh_2)){
-  dat[[new_fh_2]]<-dat[[new_fh_2]]+1
-  dat[is.na(dat[[new_fh_2]])][[new_fh_2]]<-0
-  pdf_fn<-paste(sep=".",out,"age_at_2dr_SR_all.pdf")
-  pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-  print(ggplot(dat,aes(x=get(names(dat)[part_age_2]),fill=factor(get(names(dat)[new_fh_2])))) + geom_density(alpha=0.7) + theme_bw() + 
-  scale_fill_manual(values=c("grey","goldenrod","dark blue"),name="Second Degree Family History",labels=c("Missing","Negative","Positive")) + 
-  labs(x="Enrollment Age") +  theme(legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10)))
-  dev.off()
-
-  pdf_fn<-paste(sep=".",out,"age_at_2dr_SR.pdf")
-  pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
-  print(ggplot(dat,aes(x=get(names(dat)[part_age_2]))) + geom_density(alpha=0.7,fill="black",alpha=0.75) + theme_bw() + 
-  labs(x="Enrollment age") +  
-  theme(title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10)))
-  dev.off()
-}
-
-pdf_fn<-paste(sep=".",out,"age_at_SR_all_hist.pdf")
-pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=get(names(dat)[part_age]),fill=factor(get(names(dat)[new_fh])))) + geom_histogram(alpha=0.7,bins=100) + theme_bw() + 
-  scale_fill_manual(values=c("grey","goldenrod","dark blue"),name="Family History",labels=c("Missing/Unknown","Negative","Positive")) + 
-  labs(x="Enrollment age") +  theme(legend.text=element_text(size=15),title=element_text(size=15),axis.title=element_text(size=15),axis.text.x=element_text(size=10))
-dev.off()
-
-pdf_fn<-paste(sep=".",out,"sex_SR.pdf")
-pdf(file=pdf_fn,height=6,width=8,useDingbats=FALSE)
-ggplot(dat,aes(x=factor(get(names(dat)[sex])),fill=factor(get(names(dat)[new_fh])))) + geom_bar() + theme_bw() +
-  scale_fill_manual(values=c("grey","goldenrod","dark blue"),name="Family History",labels=c("Missing/Unknown","Negative","Positive")) + 
-  scale_x_discrete(labels=c("Male","Female"),name="Sex")
-dev.off()
-
-#make new FH on the scale of FH (0/1 with NA for unknown/missing)
-dat[dat[[strat_col]]==0,][[strat_col]]<-NA
-dat[[strat_col]]<-dat[[strat_col]]-1
 
 subset<-dat[!is.na(dat[[strat_col]])] #remove if NA for stratum
 print(paste("Data dimensions after removing samples with NA stratum:",dim(subset)[1],dim(subset)[2]))
 
-#age at time of self report and family history without NA
-pdf_fn<-paste(sep=".",out,"age_at_SR_sub.pdf")
-pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
-ggplot(subset,aes(x=get(names(subset)[part_age]),fill=factor(get(names(subset)[new_fh])))) + geom_density(alpha=0.5) + theme_bw() + 
-  scale_fill_manual(values=c("blue","red"),name="FamilyHx") + labs(x="Age at screening age") +
-  theme(legend.text=element_text(size=20),title=element_text(size=20),axis.title=element_text(size=20),axis.text.x=element_text(size=10))
-dev.off()
+subset<-subset[!is.na(subset[[pheno_col]])] #remove if NA for pheno
+print(paste("Data dimensions after removing samples with NA phenotype:", dim(subset)[1],dim(subset)[2]))
 
 ##stratify then calculate quantiles
-sobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs,prev_col=pheno,strat_col=new_fh,qfirst=FALSE)
-#print(sobj)
+sobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs,prev_col=pheno,strat_col=fh,qfirst=FALSE)
+##calculate quantiles then stratify
+qobj<-lapply(quantiles,prev_per_quantile_stratum,df=subset,GRS_col=grs_col,prev_col=pheno_col,strat_col=strat_col,qfirst=TRUE)
 
-size<-length(sobj) #number of quantiles being tested, size of obj
+size<-length(quantiles) #number of quantiles being tested, size of obj
 for (i in 1:size){ #across q-quantiles
   for (j in c(1,2)){ #across stratum
     list_length<-length(sobj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
     prev<-sobj[[i]]$prev[j,][-list_length]
     se<-sobj[[i]]$se[j,][-list_length]
     n<-sobj[[i]]$n[j,][-list_length]
-    tiles<-sobj[[i]]$tiles[-1]
-    lower_tile<-sobj[[i]]$tiles[1:list_length-1]
-    upper_tile<-sobj[[i]]$tiles[2:list_length]
-    percents<-names(tiles)
+    tiles<-sobj[[i]]$tiles[j,][-1]
+    lower_tile<-sobj[[i]]$tiles[j,][1:list_length-1]
+    upper_tile<-sobj[[i]]$tiles[j,][2:list_length]
+    percents<-sobj[[i]]$percents[-1]
     bins<-rep(quantiles[i],list_length-1)
     strat<-rep(j-1,list_length-1)
     if (j==1) {
@@ -655,19 +508,25 @@ for (i in 1:size){ #across q-quantiles
     }
   }
   
-  #estimate FHiGRS
-  qsub<-estimate_FHiGRS(sdf,subset,new_fh,grs,out)
-  fhigrs<-which(names(qsub)=="FHIGRS")
+  for (j in c(1,2)){ #across stratum
+    list_length<-length(qobj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
+    prev<-qobj[[i]]$prev[j,][-list_length]
+    se<-qobj[[i]]$se[j,][-list_length]
+    n<-qobj[[i]]$n[j,][-list_length]
+    tiles<-qobj[[i]]$tiles[j,][-1]
+    lower_tile<-qobj[[i]]$tiles[j,][1:list_length-1]
+    upper_tile<-qobj[[i]]$tiles[j,][2:list_length]
+    percents<-qobj[[i]]$percents[-1]
+    bins<-rep(quantiles[i],list_length-1)
+    strat<-rep(j-1,list_length-1)
+    if (i==1 & j==1) {
+      qdf<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,lower_tile=lower_tile,upper_tile=upper_tile,row.names=NULL)
+    } else {
+      qdf<-rbind(qdf,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,lower_tile=lower_tile,upper_tile=upper_tile,row.names=NULL))
+    }
+  }
   
-  #plot distribution of FHiGRS with sex 
-  pdf_fn<-paste(sep=".",out,quantiles[i],"FHIGRS_sex_distribution.pdf")
-  pdf(file=pdf_fn,height=4,width=6,useDingbats=FALSE)
-  x<-ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
-          scale_fill_manual(values=c("blue","red"),name="Sex") + labs(x="FHIGRS")
-  y<-ggplot(qsub,aes(x=FHIGRS,fill=factor(get(names(qsub)[new_fh])))) + geom_density(alpha=0.5) + theme_bw() + 
-    scale_fill_manual(values=c("blue","red"),name="Familyhx") + labs(x="FHIGRS")
-  grid.arrange(x,y)
-  dev.off()
+  qsub<-subset
   
   ##censor
   if (censor==TRUE){
@@ -694,36 +553,24 @@ for (i in 1:size){ #across q-quantiles
   age_std<-which(names(qsub)=="age_std")
   
   #plot distribution of GRS with sex and FH and age
-  pdf_fn<-paste(sep=".",out,quantiles[i],"GRS_sex_distribution.pdf")
+  pdf_fn<-paste(sep=".",out,quantiles[i],"GRS_distribution.pdf")
   pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
-  x<-ggplot(qsub,aes(x=get(names(qsub)[grs]),fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
-          scale_fill_manual(values=c("purple","green3"),name="Sex",labels=c("Male","Female")) + labs(x="GRS")
-  y<-ggplot(qsub,aes(x=get(names(qsub)[grs]),fill=factor(get(names(qsub)[new_fh])))) + geom_density(alpha=0.5) + theme_bw() + 
+  x<-ggplot(qsub,aes(x=get(names(qsub)[grs]),fill=factor(get(names(qsub)[pheno_col]))))  +  geom_density(alpha=0.5) + theme_bw() + 
+    scale_fill_manual(values=c("purple","green3"),name="Trait Status",labels=c("Control","Case")) + labs(x="GRS")
+  y<-ggplot(qsub,aes(x=get(names(qsub)[grs]),fill=factor(get(names(qsub)[fh])))) + geom_density(alpha=0.5) + theme_bw() + 
     scale_fill_manual(values=c("goldenrod3","darkblue"),name="Family History",labels=c("Negative","Positive")) + labs(x="GRS")
   z<-ggplot(qsub,aes(x=get(names(qsub)[grs]),fill=old)) + geom_density(alpha=0.5) + theme_bw() + 
     scale_fill_manual(values=c("light blue","grey"),name="Age",labels=c("<=50",">50")) + labs(x="GRS")
   grid.arrange(x,y,z)
   dev.off()
   
-  #plot distribution of FHiGRS with sex and FH and age
-  pdf_fn<-paste(sep=".",out,quantiles[i],"FHiGRS_sex_distribution.pdf")
-  pdf(file=pdf_fn,height=6,width=6,useDingbats=FALSE)
-  x<-ggplot(qsub,aes(x=get(names(qsub)[fhigrs]),fill=factor(get(names(qsub)[sex])))) + geom_density(alpha=0.5) + theme_bw() + 
-    scale_fill_manual(values=c("purple","green3"),name="Sex",labels=c("Male","Female")) + labs(x="FHiGRS")
-  y<-ggplot(qsub,aes(x=get(names(qsub)[fhigrs]),fill=factor(get(names(qsub)[new_fh])))) + geom_density(alpha=0.5) + theme_bw() + 
-    scale_fill_manual(values=c("goldenrod3","darkblue"),name="Family History",labels=c("Negative","Positive")) + labs(x="FHiGRS")
-  z<-ggplot(qsub,aes(x=get(names(qsub)[fhigrs]),fill=old)) + geom_density(alpha=0.5) + theme_bw() + 
-    scale_fill_manual(values=c("light blue","grey"),name="Age",labels=c("<=50",">50")) + labs(x="FHiGRS")
-  grid.arrange(x,y,z)
-  dev.off()
-  
   #establish color palette early 
   pamp<-lacroix_palette("Pamplemousse",type = "discrete", n=6) #6 elements
   pamp2<-c(pamp[1:6],"#8B4789") #7 elements 
- 
+  
   #correlation matrix between covariates, need to handle the covarites given for model and birthyear/sex
-  var_list<-c(pheno,sex,batch,birthYear,pcs,strat_col,fhigrs,grs,part_age)
-  var_names<-c("Pheno","Sex","Batch","birthYear","PC1","PC2","PC3","PC4","FamHx","FHIGRS","GRS","EnrollmentAge")
+  var_list<-c(pheno,batch,birthYear,sex,pcs,strat_col,grs,part_age)
+  var_names<-c("Pheno","Batch","birthYear","Sex","PC1","PC2","PC3","PC4","FamHx","GRS","EnrollmentAge")
   mydata.rcorr<-subset(qsub,select=var_list) %>% as.matrix() %>% rcorr(type="pearson") ### Pearson ok?
   row.names(mydata.rcorr$r)<-var_names
   colnames(mydata.rcorr$r)<-var_names
@@ -733,16 +580,6 @@ for (i in 1:size){ #across q-quantiles
   par(mar=c(1.25,1.25,1.25,1.25))
   print(corrplot.mixed(mydata.rcorr$r,upper="ellipse",lower.col="black",upper.col=col1(100),tl.pos="lt",tl.col="black"))
   dev.off()
-  
-  ### phi coefficient for binary variables
-  #binary_var_list<-c(pheno,new_fh,sex,batch)
-  #binary_label_list<-c("pheno","familyHx","sex","batch")
-  #comb<-combn(binary_var_list,2)
-  #phi_list<-rep(NA,ncol(comb))
-  #for (c in 1:ncol(comb)){
-   # phi_list[c]<-phicoef(table(qsub %>% select(comb[,c])))
-  # }
-  #-0.3 to +0.3 little or no association.
   
   #### correlation between age of participation and FH
   #visual
@@ -755,10 +592,9 @@ for (i in 1:size){ #across q-quantiles
   glm.obj<-glm(formula=formula,data=qsub,family="binomial")
   print(summary(glm.obj))
   #point biserial correlation
-  biserial.cor(qsub[[part_age]],qsub[[new_fh]]) 
-  biserial.cor(qsub[[birthYear]],qsub[[new_fh]]) 
-  biserial.cor(qsub[[grs]],qsub[[new_fh]]) 
-  biserial.cor(qsub[[fhigrs]],qsub[[new_fh]]) 
+  biserial.cor(qsub[[part_age]],qsub[[fh]]) 
+  biserial.cor(qsub[[birthYear]],qsub[[fh]]) 
+  biserial.cor(qsub[[grs]],qsub[[fh]]) 
   
   #### leave one variable out at a time and test participation age instead of birthyear, standard model without cutpoint 
   tcdf<-data.frame() #continuous
@@ -766,20 +602,20 @@ for (i in 1:size){ #across q-quantiles
   edf<-data.frame() #continuous extended
   test_covar<-function(qsub,covar,out,name,int_term){
     #change these if other covars are included
-    covar_indices<-as.character(c(birthYear_std, batch, pcs, sex, part_age_std,part_age_sq_std)) #standardized age variables 
+    covar_indices<-as.character(c(birthYear_std, batch, pcs,sex, part_age_std,part_age_sq_std)) #standardized age variables 
     covar_names<-c("birthYear","batch","PC1", "PC2", "PC3", "PC4","sex","participation_age","participation_age_squared")
     
     #contious variable as predictor
     if (length(covar)>0){
-      mobj<-model(df=qsub,grs_col=grs,fhigrs_col=fhigrs,pheno_col=pheno,strat_col=new_fh,covar=covar,out,name,int_term) #last variable is the column number for the variable we want to test interaction wth family history
+      mobj<-model(df=qsub,grs_col=grs,pheno_col=pheno,strat_col=fh,covar=covar,out,name,int_term) #last variable is the column number for the variable we want to test interaction wth family history
       if (!is.null(int_term)){
-        model_list<-c("covar_only","GRS","FHiGRS","interaction","additive","family","FH_interaction") #model being tested 
-        pred_list<-c("FHIGRS","GRS","FH","FH*GRS","Int")
-        model_list_reorder<-c("GRS", "family", "additive","FHiGRS","FH_interaction")
+        model_list<-c("covar_only","GRS","interaction","additive","family","FH_interaction") #model being tested 
+        pred_list<-c("GRS","FH","FH*GRS","Int")
+        model_list_reorder<-c("GRS", "family", "additive","FH_interaction")
       } else {
-        model_list<-c("covar_only","GRS","FHiGRS","interaction","additive","family")
-        pred_list<-c("FHIGRS","GRS","FH","FH*GRS")
-        model_list_reorder<-c("GRS", "family", "additive","FHiGRS")
+        model_list<-c("covar_only","GRS","interaction","additive","family")
+        pred_list<-c("GRS","FH","FH*GRS")
+        model_list_reorder<-c("GRS", "family", "additive")
       }
       
       for (l in 1:length(mobj)){ #loop over list from model function
@@ -803,7 +639,7 @@ for (i in 1:size){ #across q-quantiles
     }
     #indicator for high or low in distirbution used as predictor
     cutpts<-c(0.8,0.9,0.95,0.99)
-    iobj<-lapply(cutpts,model_indicator,df=qsub,covar=covar,pheno_col=pheno,grs_col=grs,fhigrs_col=fhigrs,strat_col=new_fh,qfirst=FALSE)
+    iobj<-lapply(cutpts,model_indicator,df=qsub,covar=covar,pheno_col=pheno,grs_col=grs,strat_col=fh,qfirst=FALSE)
     for (l in 1:length(iobj)){ #loop over list from model function, one per cutpt value
       name_list<-names(iobj[[l]])
       for (n in 1:length(name_list)){ #across the models tested 
@@ -829,7 +665,7 @@ for (i in 1:size){ #across q-quantiles
   
   ##reset birthyear_std to be the column for age_std so that it is on the same direction as participaation (baseline) age
   birthYear_std<-age_std
-
+  
   covar<-c(birthYear_std,batch,pcs,sex) #birthyear + batch + pcs + sex + [FH, GRS, FH+GRS, FH*GRS, FHiGRS, null]
   name<-"birthYear_batch_PCs_sex"
   tmp<-test_covar(qsub,covar,out,name,part_age_std) #testing interaction between participation age and FH
@@ -928,7 +764,7 @@ for (i in 1:size){ #across q-quantiles
   
   pdf(file=paste0(out,"_LOCO_model_continuous.pdf"),height=8,width=12,useDingbats = FALSE)
   print(ggplot(tcdf,aes(x=OR,y=pred,color=pred)) + geom_point() + theme_bw() + facet_wrap(~covar+model) + 
-    geom_errorbarh(aes(xmin=tcdf$LB,xmax=tcdf$UB)))
+          geom_errorbarh(aes(xmin=tcdf$LB,xmax=tcdf$UB)))
   dev.off()
   
   edf$model<-as.factor(edf$model)
@@ -958,17 +794,17 @@ for (i in 1:size){ #across q-quantiles
     #file.remove(files[fi]) #delete file so it doesn't get pulled back up later
   }
   gof_df$model<-revalue(gof_df$model,c("FH"='family',"GRS+FH"="additive","GRS*FH"="FH interaction with GRS","FH_int"="FH interaction with enrollment age"))
-  gof_df$model<-factor(gof_df$model,levels(gof_df$model)[c(1,2,5,4,7,6,3)])
+  gof_df$model<-factor(gof_df$model,levels(gof_df$model)[c(1,2,4,7,6,3)])
   write.table(gof_df,file=paste0(out,".all.model.GOF.txt"),sep="\t",row.names=FALSE,col.names=TRUE,quote=FALSE)
   
   pdf(file=paste0(out,"_all_model_continuous_gof.pdf"),height=6,width=8,useDingbats = FALSE)
   print(ggplot(gof_df,aes(x=Brier,y=Nagelkerke,color=model)) + geom_point() + theme_bw() + facet_wrap(~covar))
   dev.off()
-
+  
   pdf(file=paste0(out,"_all_model_continuous_gof_OR.pdf"),height=6,width=20,useDingbats = FALSE)
   x<-ggplot(gof_df,aes(x=model,y=Nagelkerke)) + geom_point() + theme_bw() + facet_wrap(~covar,nrow=1) + theme(axis.text.x=element_text(angle=45))
   y<-ggplot(edf,aes(x=model,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~covar,nrow=1) + geom_vline(xintercept=1,linetype="dashed",color="red") +
-              geom_errorbar(aes(ymin=edf$LB,ymax=edf$UB)) + coord_cartesian(ylim=c(0,3)) +  theme(axis.text.x=element_text(angle=45),legend.position="bottom")
+    geom_errorbar(aes(ymin=edf$LB,ymax=edf$UB)) + coord_cartesian(ylim=c(0,3)) +  theme(axis.text.x=element_text(angle=45),legend.position="bottom")
   grid.arrange(x,y,nrow=2)  
   dev.off()
   
@@ -992,15 +828,14 @@ for (i in 1:size){ #across q-quantiles
   dev.off()
   
   #### clean plot for poster
-  #look at fewer models
-  edf_sub2<-edf_sub[edf_sub$covar %in% c("batch_PCs_sex","birthYear_batch_PCs_sex","partAge_batch_PCs_sex", "batch_partAge_sex_PCs_birthYear"),]
-  gof_df_sub<-gof_df[gof_df$covar %in% c("batch_PCs_sex","birthYear_batch_PCs_sex","partAge_batch_PCs_sex", "batch_partAge_sex_PCs_birthYear"),]
+  #look at fewer model
+  gof_df_sub<-gof_df[gof_df$covar %in% c("batch_PCs","birthYear_batch_PCs","partAge_batch_PCs", "batch_partAge_sex_PCs_birthYear"),]
   edf_sub2$covar<-factor(edf_sub2$covar,levels(as.factor(edf_sub2$covar))[c(2,3,4,1)])
   gof_df_sub$covar<-factor(gof_df_sub$covar,levels(as.factor(gof_df_sub$covar))[c(2,3,4,1)])
-  edf_sub2$covar<-revalue(edf_sub2$covar,c("birthYear_batch_PCs_sex"="age + batch + \nPCs + sex","partAge_batch_PCs_sex"="enrollment age + batch + \nPCS + sex", "batch_PCs_sex"="batch + PCS + sex", 
-                                           "batch_partAge_sex_PCs_birthYear"="enrollment age + age + \nbatch + sex + PCs"))
-  gof_df_sub$covar<-revalue(gof_df_sub$covar,c("birthYear_batch_PCs_sex"="age + batch + \nPCs + sex","partAge_batch_PCs_sex"="enrollment age + batch + \nPCS + sex", "batch_PCs_sex"="batch + PCS + sex", 
-                                               "batch_partAge_sex_PCs_birthYear"="enrollment age + age + \nbatch + sex + PCs"))
+  edf_sub2$covar<-revalue(edf_sub2$covar,c("birthYear_batch_PCs"="age + batch + \nPCs + sex","partAge_batch_PCs"="enrollment age + batch + \nPCS ", "batch_PCs"="batch + PCS", 
+                                           "batch_partAge_PCs_birthYear"="enrollment age + age + \nbatch + sex + PCs"))
+  gof_df_sub$covar<-revalue(gof_df_sub$covar,c("birthYear_batch_PCs"="age + batch + \nPCs","partAge_batch_PCs"="enrollment age + batch + \nPCS ", "batch_PCs"="batch + PCS ", 
+                                               "batch_partAge_PCs_birthYear"="enrollment age + age + \nbatch  + PCs"))
   
   gof_df_sub$model<-revalue(gof_df_sub$model,c("family"="family history","covar_only"="covariates only"))
   edf_sub2$model<-revalue(edf_sub2$model,c("family"="family history","covar_only"="covariates only"))
@@ -1022,13 +857,13 @@ for (i in 1:size){ #across q-quantiles
   ##Bhramar plot for poster
   gof_df_roc<-unique(gof_df[c("cvAUC","AUC_LB","AUC_UB","model","covar")])
   #compare model with and without baseline age
-  roc<-gof_df_roc[gof_df_roc$model=="covar_only"&gof_df_roc$covar=="batch_PCs_sex",]
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="family"&gof_df_roc$covar=="batch_PCs_sex",])
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="family"&gof_df_roc$covar=="partAge_batch_PCs_sex",])
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="GRS"&gof_df_roc$covar=="batch_PCs_sex",])
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="GRS"&gof_df_roc$covar=="partAge_batch_PCs_sex",])
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive"&gof_df_roc$covar=="batch_PCs_sex",])
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive"&gof_df_roc$covar=="partAge_batch_PCs_sex",])
+  roc<-gof_df_roc[gof_df_roc$model=="covar_only"&gof_df_roc$covar=="batch_PCs",]
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="family"&gof_df_roc$covar=="batch_PCs",])
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="family"&gof_df_roc$covar=="partAge_batch_PCs",])
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="GRS"&gof_df_roc$covar=="batch_PCs",])
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="GRS"&gof_df_roc$covar=="partAge_batch_PCs",])
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive"&gof_df_roc$covar=="batch_PCs",])
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive"&gof_df_roc$covar=="partAge_batch_PCs",])
   roc$labels<-c("covariates only","covariates + family history","covariates + family history\n + enrollment age","covariates + GRS","covariates + GRS\n + enrollment age", "covariates + family history + GRS","covariates + family history + GRS\n + enrollment age")
   roc$labels<-factor(roc$labels,levels(as.factor(roc$labels))[c(7,1,2,5,6,3,4)])
   roc$group<-as.character(c(0,1,1,2,2,3,3))
@@ -1040,10 +875,10 @@ for (i in 1:size){ #across q-quantiles
     scale_color_manual(values=col) + geom_hline(linetype="dashed",color="red",yintercept=0.5)
   dev.off()
   #compare interactions with additive
-  roc<-gof_df_roc[gof_df_roc$model=="family" & gof_df_roc$covar=="partAge_batch_PCs_sex",] #covar + partAge + FH
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="FH interaction with enrollment age"&gof_df_roc$covar=="batch_PCs_sex",]) #covar + partAge + FH + partAge*FH
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive" & gof_df_roc$covar=="batch_PCs_sex",]) #covar + FH + GRS
-  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="FH interaction with GRS" & gof_df_roc$covar=="batch_PCs_sex",]) #covar + FH + GRS + FH*GRS
+  roc<-gof_df_roc[gof_df_roc$model=="family" & gof_df_roc$covar=="partAge_batch_PCs",] #covar + partAge + FH
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="FH interaction with enrollment age"&gof_df_roc$covar=="batch_PCs",]) #covar + partAge + FH + partAge*FH
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="additive" & gof_df_roc$covar=="batch_PCs",]) #covar + FH + GRS
+  roc<-rbind(roc,gof_df_roc[gof_df_roc$model=="FH interaction with GRS" & gof_df_roc$covar=="batch_PCs",]) #covar + FH + GRS + FH*GRS
   roc$labels<-c("covariates + family history\n + enrollmentAge","covariates + family history + enrollmentAge\n + FH*enrollmentAge","covariates + family history\n + GRS","covariates + family history + GRS\n + FH*GRS")
   roc$group<-as.character(c(0,0,1,1))
   col<-c(rep(pamp2[7],2),rep(pamp[5],2))
@@ -1054,7 +889,7 @@ for (i in 1:size){ #across q-quantiles
     scale_color_manual(values=col) + geom_hline(linetype="dashed",color="red",yintercept=0.5)
   dev.off()
   
-
+  
   ### make smaller plot with sele cted points
   
   #look at HUNT 1,2,3 as a covariate to explain participation age
@@ -1066,22 +901,22 @@ for (i in 1:size){ #across q-quantiles
   sub<-idf[idf$name=="FHIGRS"|idf$name=="GRS",]
   pdf(file=paste0(out,"_LOCO_model_indicator.pdf"),height=8,width=8,useDingbats = FALSE)
   print(ggplot(sub,aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + facet_wrap(~covar) + 
-    geom_errorbarh(aes(xmin=sub$LB,xmax=sub$UB),height=0.2) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio"))
+          geom_errorbarh(aes(xmin=sub$LB,xmax=sub$UB),height=0.2) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio"))
   dev.off()
   
   ###make plots for the talk from idf
   pdf(file=paste0(out,"_model_progression.pdf"),height=8,width=12,useDingbats = FALSE)
   x<-ggplot(sub[sub$covar=="none",],aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + 
-        geom_errorbarh(aes(xmin=sub[sub$covar=="none",]$LB,xmax=sub[sub$covar=="none",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio")
-  y<-ggplot(sub[sub$covar=="birthYear_batch_PCs_sex",],aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() +
-    geom_errorbarh(aes(xmin=sub[sub$covar=="birthYear_batch_PCs_sex",]$LB,xmax=sub[sub$covar=="birthYear_batch_PCs_sex",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio")
-  z<-ggplot(sub[sub$covar=="batch_PCs_sex",],aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + 
-    geom_errorbarh(aes(xmin=sub[sub$covar=="batch_PCs_sex",]$LB,xmax=sub[sub$covar=="batch_PCs_sex",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio") 
+    geom_errorbarh(aes(xmin=sub[sub$covar=="none",]$LB,xmax=sub[sub$covar=="none",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio")
+  y<-ggplot(sub[sub$covar=="birthYear_batch_PCs",],aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() +
+    geom_errorbarh(aes(xmin=sub[sub$covar=="birthYear_batch_PCs",]$LB,xmax=sub[sub$covar=="birthYear_batch_PCs",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio")
+  z<-ggplot(sub[sub$covar=="batch_PCs",],aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + 
+    geom_errorbarh(aes(xmin=sub[sub$covar=="batch_PCs",]$LB,xmax=sub[sub$covar=="batch_PCs",]$UB)) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio") 
   grid.arrange(x,y,z,ncol=3)
   dev.off()
   
-  sub2<-sub[sub$covar=="none" | sub$covar=="birthYear_batch_PCs_sex" | sub$covar=="batch_PCs_sex",]
-  sub2$covar<-factor(sub2$covar, levels = c("none","birthYear_batch_PCs_sex","batch_PCs_sex"))
+  sub2<-sub[sub$covar=="none" | sub$covar=="birthYear_batch_PCs" | sub$covar=="batch_PCs",]
+  sub2$covar<-factor(sub2$covar, levels = c("none","birthYear_batch_PCs","batch_PCs"))
   pdf(file=paste0(out,"_model_progression_facet.pdf"),height=4,width=8,useDingbats = FALSE)
   ggplot(sub2,aes(x=OR,y=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + 
     geom_errorbarh(aes(xmin=sub2$LB,xmax=sub2$UB),height=0.2) + ylab("Threshold for High Risk Group") + xlab("Odds Ratio") +
@@ -1090,8 +925,8 @@ for (i in 1:size){ #across q-quantiles
   dev.off()
   
   #get the colors to match the previous plots
-  sub2$covar<-revalue(sub2$covar,c("birthYear_batch_PCs_sex"="MI ~ I(top X-tile) + batch + \nPCs + sex + birth year", 
-                                       "batch_PCs_sex"="MI ~ I(top X-tile) + \nbatch + PCS + sex", "none"="MI ~ I(top X-tile)"))
+  sub2$covar<-revalue(sub2$covar,c("birthYear_batch_PCs"="MI ~ I(top X-tile) + batch + \nPCs  + birth year", 
+                                   "batch_PCs"="MI ~ I(top X-tile) + \nbatch + PCS", "none"="MI ~ I(top X-tile)"))
   pdf(file=paste0(out,"_model_progression_facet_v2.pdf"),height=3,width=7,useDingbats = FALSE)
   ggplot(sub2,aes(y=OR,x=as.factor(cutpt),color=name)) + geom_point() + theme_bw() + 
     geom_errorbar(aes(ymin=sub2$LB,ymax=sub2$UB),width=0.2) + xlab("Threshold for High Risk Group") + ylab("Odds Ratio") +
@@ -1106,27 +941,29 @@ for (i in 1:size){ #across q-quantiles
   sdf<-data.frame()
   #subset$bin<-cut(subset[[part_age]],3)
   #subset$bin<-cut_number(subset[[part_age]],5)
-  #subset$bin<-cut(subset[[part_age]],breaks=c(19,40,60,80,120))
-  subset$bin<-cut(subset[[part_age]],breaks=c(20,30,40,50,60,70,80))
+  #subset$bin<-cut(subset[[part_age]],breaks=c(20,40,60,80,120))
+  subset$bin<-cut(subset[[part_age]],breaks=c(35,40,45,50,55,60,65,70))
   age_bins<-unique(subset$bin)
   prop<-c()
   count<-c()
   for (b in 1:length(age_bins)) {
+    print(age_bins[b])
     bin_sub<-subset[subset$bin==age_bins[b],]
-    prop[b]<-sum(bin_sub[[new_fh]])/nrow(bin_sub) #how many within each age group have a self reported relative with disease
+    prop[b]<-sum(bin_sub[[fh]])/nrow(bin_sub) #how many within each age group have a self reported relative with disease
     count[b]<-nrow(bin_sub)
-    print(odds_ratio(bin_sub,grs_col=grs,prev_col=pheno,strat_col=new_fh))
-    sobj<-lapply(quantiles,prev_per_quantile_stratum,df=bin_sub,GRS_col=grs,prev_col=pheno,strat_col=new_fh,qfirst=FALSE)
+    print(odds_ratio(bin_sub,grs_col=grs,prev_col=pheno,strat_col=fh))
+    sobj<-lapply(quantiles,prev_per_quantile_stratum,df=bin_sub,GRS_col=grs,prev_col=pheno,strat_col=fh,qfirst=FALSE)
     i<-1
+    print(str(sobj))
     for (j in c(1,2)){ #across stratum
       list_length<-length(sobj[[i]]$prev[j,]) #need to remove the 0th percentile so the prevalence aligns with correct nth percentile
       prev<-sobj[[i]]$prev[j,][-list_length]
       se<-sobj[[i]]$se[j,][-list_length]
       n<-sobj[[i]]$n[j,][-list_length]
-      tiles<-sobj[[i]]$tiles[-1]
-      lower_tile<-sobj[[i]]$tiles[1:list_length-1]
-      upper_tile<-sobj[[i]]$tiles[2:list_length]
-      percents<-names(tiles)
+      tiles<-sobj[[i]]$tiles[j,][-1]
+      lower_tile<-sobj[[i]]$tiles[j,][1:list_length-1]
+      upper_tile<-sobj[[i]]$tiles[j,][2:list_length]
+      percents<-sobj[[i]]$percents[-1]
       bins<-rep(quantiles[i],list_length-1)
       strat<-rep(j-1,list_length-1)
       if (j==1 & b==1) {
@@ -1146,22 +983,23 @@ for (i in 1:size){ #across q-quantiles
   sdf$label<-paste(sep="\n",paste0("Enrollment age ",sdf$bin),paste0(format(sdf$propFH*100,digits=3),sep="% with family history"),paste0("N=",sdf$count))
   pdf(file=paste(sep="_",out,unique(sdf$q),"prev_by_part_age.pdf"),height=5,width=10,useDingbats = FALSE)
   ggplot(sdf,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=sdf$lb,ymax=sdf$ub)) +
-          scale_color_manual(values=c("goldenrod3","darkblue"),name="Family History",labels=c("Negative","Positive")) + xlab("GRS quantile") + ylab("Prevalence")  +
-          scale_x_continuous(breaks=breaks) +  facet_wrap(~label,nrow=1) + theme(legend.position="bottom",legend.text=element_text(size=14),title=element_text(size=14),axis.title=element_text(size=14),axis.text.x=element_text(size=8)) +
+    scale_color_manual(values=c("goldenrod3","darkblue"),name="Family History",labels=c("Negative","Positive")) + xlab("GRS quantile") + ylab("Prevalence")  +
+    scale_x_continuous(breaks=breaks) +  facet_wrap(~label,nrow=1) + theme(legend.position="bottom",legend.text=element_text(size=14),title=element_text(size=14),axis.title=element_text(size=14),axis.text.x=element_text(size=6,angle=45)) +
     theme(strip.background =element_rect(fill="white"))
   dev.off()
   
-}
+} ###end of qtile loop
 
 
 
 #TO DO: int_term isn't working so just made it NULL
 
 ####### models across the ages 
-age_analysis<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,part_age_std,cut_age=60){
+age_analysis<-function(df,grs_col,strat_col,pheno_col,out,part_age,part_age_std,cut_age=60){
   #df$age_bins<-cut_number(df[[part_age]],4)
-  df$age_bins<-cut(df[[part_age]],breaks=c(19,30,40,50,60,70,80,100)) #decade bins
-  #df$age_bins<-cut(df[[part_age]],breaks=c(19,40,60,80,100)) #20 year bins
+  df$age_bins<-cut(df[[part_age]],breaks=c(35,40,45,50,55,60,65,70)) #decade bins
+  #df$age_bins<-cut(df[[part_age]],breaks=c(15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90)) #five years 
+  #df$age_bins<-cut(df[[part_age]],breaks=c(20,40,60,80,100)) #20 year bins
   #df$age_bins<-cut(df[[part_age]],15) #roughly 5 year, this is failing at model indicator function figure out why
   #df$age_bins<-cut(df[[part_age]],breaks=seq(40,80)) #check cross over age by looking at every age
   df<-df[!is.na(df$age_bins),]
@@ -1169,7 +1007,6 @@ age_analysis<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,pa
   tcdf<-data.frame() #continuous
   idf<-data.frame() #indicator
   edf<-data.frame() #continuous extended
-  sex_edf<-data.frame() #continuous extended for sex stratified
   #covar<-c(batch,pcs,sex,part_age_std)
   #name<-"batch_PCs_sex_partAge"
   covar<-c(batch,pcs,sex)
@@ -1177,35 +1014,23 @@ age_analysis<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,pa
   #by bins
   for (b in 1:length(bins)){
     age_sub<-df[df$age_bins==bins[b],] #age subset
-    #print(bins[b])
-    #print(nrow(age_sub))
-    tmp<-test_covar(age_sub,covar,out,name,int_term=NULL)
-    tmp$continuous$covar<-name
-    tmp$indicator$covar<-name
-    tmp$continuous_extended$covar<-name
-    tmp$continuous$age_bin<-bins[b]
-    tmp$indicator$age_bin<-bins[b]
-    tmp$continuous_extended$age_bin<-bins[b]
-    tmp$continuous_extended$count<-nrow(age_sub)
-    tmp$continuous_extended$FH_count<-table(age_sub[[strat_col]])[2]
-    tmp$continuous_extended$pheno_count<-table(age_sub[[pheno_col]])[2]
-    tcdf<-rbind(tcdf,tmp$continuous)
-    idf<-rbind(idf,tmp$indicator)
-    edf<-rbind(edf,tmp$continuous_extended)
-    #sex stratified
-    for (sex_val in c(1,2)){
-      covar2<-covar[covar!=sex]
-      sex_sub<-df[df[[sex]]==sex_val,] #sex subset
-      age_sub<-sex_sub[sex_sub$age_bins==bins[b],] #age subset
-      tmp<-test_covar(age_sub,covar2,out,name,int_term=NULL)
-      tmp$continuous_extended$age_bin<-bins[b]
+    print(bins[b])
+    print(nrow(age_sub))
+    if (nrow(age_sub) > 1){
+      tmp<-test_covar(age_sub,covar,out,name,int_term=NULL)
+      tmp$continuous$covar<-name
+      tmp$indicator$covar<-name
       tmp$continuous_extended$covar<-name
-      tmp$continuous_extended$sex<-sex_val
+      tmp$continuous$age_bin<-bins[b]
+      tmp$indicator$age_bin<-bins[b]
+      tmp$continuous_extended$age_bin<-bins[b]
       tmp$continuous_extended$count<-nrow(age_sub)
       tmp$continuous_extended$FH_count<-table(age_sub[[strat_col]])[2]
       tmp$continuous_extended$pheno_count<-table(age_sub[[pheno_col]])[2]
-      print(head(tmp$continuous_extended))
-      sex_edf<-rbind(sex_edf,tmp$continuous_extended)
+      tcdf<-rbind(tcdf,tmp$continuous)
+      idf<-rbind(idf,tmp$indicator)
+      edf<-rbind(edf,tmp$continuous_extended)
+      print(edf)
     }
   }
   #old
@@ -1238,20 +1063,19 @@ age_analysis<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,pa
   idf<-rbind(idf,tmp$indicator)
   edf<-rbind(edf,tmp$continuous_extended)
   
-  return(list(tcdf=tcdf,idf=idf,edf=edf,sex_edf=sex_edf))
+  return(list(tcdf=tcdf,idf=idf,edf=edf))
+  
 }
-
-
 
 ##### looking at models across age bins using age_analysis function
 
 cut_age<-60
-aobj<-age_analysis(qsub,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,part_age_std,cut_age)
+aobj<-age_analysis(qsub,grs_col,strat_col,pheno_col,out,part_age,part_age_std,cut_age)
 #if model_df not found we need to reset i to  1, we should put this  in the  big loop over the q quantiles
-edf_sub<-aobj$edf[(aobj$edf$pred=="FH"|aobj$edf$pred=="GRS"|aobj$edf$pred=="FHIGRS") & aobj$edf$model!="interaction" & aobj$edf$age_bin!="old" & aobj$edf$age_bin!="young",]
+edf_sub<-aobj$edf[(aobj$edf$pred=="FH"|aobj$edf$pred=="GRS") & aobj$edf$model!="interaction" & aobj$edf$age_bin!="old" & aobj$edf$age_bin!="young",]
 edf_sub$model<-as.factor(edf_sub$model)
 edf_sub$prop_FH<- edf_sub$FH_count/edf_sub$count #proportion family history
-levels(edf_sub$model)<-c("family history + GRS","family history only","FHiGRS","GRS only")
+levels(edf_sub$model)<-c("family history + GRS","family history only","GRS only")
 edf_sub$xlab<-paste(sep="\n",edf_sub$age_bin,paste0("(",format(edf_sub$prop_FH*100,digits=3),"% of ", edf_sub$count,")")) ##make column with label
 #currently not using because order was off
 xlabel_list<-c()
@@ -1262,7 +1086,7 @@ for (x in 1:nrow(unique(edf_sub[c("age_bin","prop_FH","count")]))){
 pdf(file=paste0(out,"_age.pdf"),height=5,width=10,useDingbats = FALSE)
 ggplot(edf_sub,aes(x=xlab,y=OR,color=pred)) + geom_point(alpha=0.5,size=2) + theme_bw() + facet_wrap(~model,nrow=1) + geom_hline(yintercept=1,linetype="dashed",color="black",alpha=0.25) +
   geom_errorbar(aes(ymin=edf_sub$LB,ymax=edf_sub$UB)) +  theme(axis.text.x=element_text(angle=45,hjust=1),legend.position="bottom",legend.title=element_blank()) +  
-  scale_color_manual(values=c(pamp[2],pamp[5],pamp[6])) + labs(y="Odds Ratio",x="[Enrollment Age Bin]\n(% Family History of n)") + scale_y_continuous(labels=function(x) sprintf("%.1f", x))
+  scale_color_manual(values=c(pamp[2],pamp[6])) + labs(y="Odds Ratio",x="[Enrollment Age Bin]\n(% Family History of n)") + scale_y_continuous(labels=function(x) sprintf("%.1f", x))
 dev.off()
 
 pdf(file=paste0(out,"_age_smooth.pdf"),height=6,width=10,useDingbats = FALSE)
@@ -1296,8 +1120,8 @@ if (length(unique(edf_sub$age_bin)) > 10) {
   edf_sub$age<-as.numeric(sapply(strsplit(as.character(edf_sub$age),"(",fixed=TRUE), '[', 2))
   pdf(file=paste0(out,"_many_ages.pdf"),height=4,width=9,useDingbats = FALSE)
   print(ggplot(edf_sub,aes(x=as.numeric(age),y=OR,color=pred)) + geom_point(alpha=0.5,size=2) + theme_bw() + facet_wrap(~model,nrow=1) + geom_hline(yintercept=1,linetype="dashed",color="black",alpha=0.25) +
-    geom_errorbar(aes(ymin=edf_sub$LB,ymax=edf_sub$UB),width=0.4) +  theme(axis.text.x=element_text(angle=45,hjust=1),legend.position="bottom",legend.title=element_blank(),strip.background =element_rect(fill="white")) +  
-    scale_color_manual(values=c(pamp[2],pamp[6])) + labs(y="Odds Ratio",x="[Baseline Age Bin]\n(% Positive Family History)") + scale_y_continuous(labels=function(x) sprintf("%.1f", x)))
+          geom_errorbar(aes(ymin=edf_sub$LB,ymax=edf_sub$UB),width=0.4) +  theme(axis.text.x=element_text(angle=45,hjust=1),legend.position="bottom",legend.title=element_blank(),strip.background =element_rect(fill="white")) +  
+          scale_color_manual(values=c(pamp[2],pamp[6])) + labs(y="Odds Ratio",x="[Baseline Age Bin]\n(% Positive Family History)") + scale_y_continuous(labels=function(x) sprintf("%.1f", x)))
   dev.off()
 }
 
@@ -1354,7 +1178,7 @@ bmi_analysis<-function(df,grs_col,fhigrs_col,strat_col,pheno_col,out,part_age,pa
   idf<-data.frame() #indicator
   edf<-data.frame() #continuous extended
   covar<-c(batch,pcs,sex,part_age_std)
-  name<-"batch_PCs_sex_partAge"
+  name<-"batch_sex_PCs_partAge"
   #by bins
   for (b in 1:length(bins)){
     bmi_sub<-df[df$bmi_bins==bins[b],] #age subset
@@ -1413,4 +1237,3 @@ ggplot(edf_sub,aes(x=bmi_bin,y=OR,color=pred)) + geom_point(alpha=0.5,size=2) + 
   geom_errorbar(aes(ymin=edf_sub$LB,ymax=edf_sub$UB),width=0.3) +  theme(axis.text.x=element_text(angle=45,hjust=1),legend.position="bottom",legend.title=element_blank(),strip.background =element_rect(fill="white")) +  
   scale_color_manual(values=c(pamp[2],pamp[6])) + labs(y="Odds Ratio",x="BMI") + scale_y_continuous(labels=function(x) sprintf("%.1f", x))
 dev.off()
-
