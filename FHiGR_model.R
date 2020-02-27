@@ -329,7 +329,7 @@ subset<-model_df[model_df$pred=="FH"|model_df$pred=="GRS",]
 
 #plot
 pdf_fn<-paste0(out,"_glm.pdf")
-pdf(file=pdf_fn,useDingbats=FALSE,height=8,width=8)
+pdf(file=pdf_fn,useDingbats=FALSE,height=5,width=8)
 ggplot(subset,aes(x=pred,y=OR,color=pred)) + geom_point() + theme_bw() + facet_wrap(~model) + 
   geom_hline(linetype="dashed",yintercept=1,color="black") +
   labs(x="Predictor",y="Odds Ratio",title=main) + scale_color_manual(values=c(pamp[1],pamp[6]),name="Predictor") +
