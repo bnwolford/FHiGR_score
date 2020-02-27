@@ -241,7 +241,7 @@ tmp2<-age_df[,c("prop_sample_woNA","lb_sample_woNA","ub_sample_woNA","age_bin")]
 names(tmp2)<-c("proportion","lb","ub","age_bin")
 tmp2$label<-"bin/sample"
 prop_df<-rbind(tmp1,tmp2)
-prop_df<-prop_df[complete.cases(prop_df)]
+prop_df<-prop_df[complete.cases(prop_df),]
 
 pdf_fn<-paste(sep=".",out,"prop_strata_by_age_prop_in_bin.pdf")
 pdf(file=pdf_fn,height=5,width=5,useDingbats=FALSE)
