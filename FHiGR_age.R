@@ -234,7 +234,7 @@ p2<-ggplot(age_df,aes(x=age_bin,y=prop_woNA)) + geom_point(aes(size=n_woNA)) + t
 p1+p2+plot_annotation(title=main)
 dev.off()
 
-tmp1<-age_df[,c("prop_strat1_woNA","lb_strat1_woNA","ub_strat1_woNA","age_bin")]
+tmp1<-age_df[,c("prop_woNA","lb_woNA","ub_woNA","age_bin")]
 names(tmp1)<-c("proportion","lb","ub","age_bin")
 tmp1$label<-"+FH/bin"
 tmp2<-age_df[,c("prop_sample_woNA","lb_sample_woNA","ub_sample_woNA","age_bin")]
@@ -248,7 +248,7 @@ pdf(file=pdf_fn,height=5,width=5,useDingbats=FALSE)
 ggplot(prop_df,aes(x=age_bin,y=proportion,color=label)) + geom_point() + theme_bw() +
   theme(legend.position="bottom",axis.text.x = element_text(angle = 45, hjust = 1)) +
   geom_errorbar(aes(ymin=prop_df$lb,ymax=prop_df$ub)) + scale_color_manual(name="Proportion",values=passion) +
-  coord_cartesian(ylim=c(0,0.75)) + labs(x="Enrollment Age Bin")
+  coord_cartesian(ylim=c(0,0.75)) + labs(x="Enrollment Age Bin",title=main)
 dev.off()
 
 #dual axis plot with bar for count of NA samples
