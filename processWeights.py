@@ -112,7 +112,7 @@ def open_zip(f):
                  print >> sys.stderr, "File was not given as parameter\n"
     elif ".gz" in f:
         command=gzip.open(f,"rt")
-        print >> sys.stderrr, "Opening gzipped file %s\n" % f
+        print >> sys.stderr, "Opening gzipped file %s\n" % f
     elif f == "-":
         command=sys.stdin()
     else:
