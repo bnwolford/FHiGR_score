@@ -30,7 +30,7 @@
 ###########################
 
 from __future__ import division
-from memory_profiler import profile
+#from memory_profiler import profile
 import argparse
 import subprocess
 import gzip
@@ -169,7 +169,7 @@ def checkAllele(weight_allele, marker_line):
     elif weight_allele is alt:
         return np.array(marker_line[5:], dtype=np.float32)
     else:
-        print >> sys.stderr("Marker %s alleles do not match either ref or alt from VCF\n") % marker
+        print >> sys.stderr("Marker %s alleles do not match either ref or alt from VCF\n" % marker)
         return np.array(None)
     
 #@profile
