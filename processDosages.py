@@ -84,7 +84,7 @@ def get_settings():
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
     parser.add_argument("--tabix",help="tabix path",type=str,default="/usr/local/bin/tabix")
-    parser.add_argument("--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
+    parser.add_argument("--bcftools",help="bcftools path",type=str,default="/home/ubuntu/miniconda/bin/bcftools")
     parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
     args=parser.parse_args()
 
