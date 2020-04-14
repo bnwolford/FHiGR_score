@@ -83,7 +83,8 @@ def get_settings():
     parser.add_argument('-i', '--id_file', help="File with sampleIDs in the same order as the VCF",type=str)
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
-    parser.add_argument("--tabix",help="bcftools path",type=str,default="/usr/local/bin/tabix")
+    parser.add_argument("--tabix",help="tabix path",type=str,default="/usr/local/bin/tabix")
+    parser.add_argument("--bcftools",help="bcftools path",type=str,default="/usr/local/bin/bcftools")
     parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
     args=parser.parse_args()
 
@@ -173,11 +174,11 @@ def checkAllele(weight_allele, marker_line):
         return np.array(None)
     
 #@profile
-def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
+def getDosage(region_file,bcftools_path,vcf,cpu,weight_dict,sample_id,output):
     # print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
     #cmd=[tabix_path, '-R',region_file , vcf]
     print >> sys.stderr, "Calling bcftools query with  %s to subset markers from  %s\n" % (vcf,region_file)
-    cmd=["/usr/local/bin/bcftools","query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
+    cmd=[bcftools_path,"query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
     max_marker=len(weight_dict) #max  number of markers from weight dictionary, could use to make numpy array/matrix
     #To do: could auto make a matrix and fill it with dosages to be more efficient?
     marker_count=0
@@ -262,7 +263,7 @@ def main():
         empty_weights(sample_id,args.output_prefix)
 
     #Calculate weighted dosages per individual, Make sure to check allele, print output 
-    getDosage(args.region_file,args.tabix,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
+    getDosage(args.region_file,args.bcftools,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
         
         
 ##### Call main
