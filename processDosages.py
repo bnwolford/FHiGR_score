@@ -207,6 +207,7 @@ def getDosage(region_file,bcftools_path,vcf,cpu,weight_dict,sample_id,output):
                             marker_count+=1
                     else:
                         print >> sys.stderr, "Neither %s or %s are in the weight file but are present in the region file\n" % (coord,alt_coord)
+        
         #To do: could do the multiplication and sum to per-sample scores each time rather that saving to query_list
         query_results=np.vstack(query_results) #turn list of numpy arrays into 2D array
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
@@ -214,6 +215,10 @@ def getDosage(region_file,bcftools_path,vcf,cpu,weight_dict,sample_id,output):
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
         print >> sys.stderr, "%d of %d markers in the weight file found in VCF. Note: Region file may have fewer coordinates than weights file, and the region file was used to query the VCF.\n" % (marker_count,max_marker)
         #f.wait()
+
+    except ValueError:
+        print>> sys.stderr, "No markers in weight file found in VCF.\n"
+        sys.exit("Exiting program\n")
         
     except KeyboardInterrupt:
         print >> sys.stderr, "Caught KeyboardInterrupt.\n"
