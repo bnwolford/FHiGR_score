@@ -270,9 +270,9 @@ def merge_pheno(gf,pf,out,drop):
     """ Merge summed GRS file with phenotype file and preserve headers"""
     outname="_".join([out,"pheno.txt"])
     print >> sys.stderr, "Merging %s with %s\n" % (gf,pf)
-    grs=pd.read_csv(gf,sep="\t")
+    grs=pd.read_csv(gf,sep="\s+")
     x=grs.columns[0] #get grs column name
-    pheno=pd.read_csv(pf,sep="\t")
+    pheno=pd.read_csv(pf,sep="\s+")
     y=pheno.columns[0] #get pheno column name
     if drop is True: #drop any entries in genetic file that are not in phenotype file
         m=pd.merge(grs,pheno,how="right",left_on=x,right_on=y)
