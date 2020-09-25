@@ -69,6 +69,7 @@ def index(vcf):
 #            rsidx index 00-All.vcf.gz 00-All.vcf.rsidx
     
 def search(rsidlist,vcf,index):
+    print("Querying markers from weights file in VCF\n",file=sys.stderr)
     in_len=len(rsidlist)
     rsid_dict={}
     with sqlite3.connect(index) as dbconn:
@@ -78,13 +79,14 @@ def search(rsidlist,vcf,index):
             rsid_dict[lineList[2]]=lineList[:5]  #assumes VCF is chr, pos, rsID, REF, ALT
     out_len=len(rsid_dict.keys())
     if in_len!=out_len:
-        print("Not all rsIDs from weights file could be found in the VCF\n",file=sys.stderr)
+        diff=int(in_len)-int(out_len)
+        print("Not all rsIDs from weights file could be found in the VCF. Missing %d of %d\n" % (diff,in_len),file=sys.stderr)
     else:
-        print("All rsIDs from weights file could be found in the VCF\n",file=sys.stderr)
+        print("All %d rsIDs from weights file could be found in the VCF.\n" % in_len,file=sys.stderr)
     return rsid_dict
                
 
-def rsid_from_weights(weights):
+def rsid_from_weights(weights,col):
     print("Getting rsIDs from weights file %s\n" %weights, file=sys.stderr)
     command=open_zip(weights)
     rsid_list=[]
@@ -98,14 +100,15 @@ def rsid_from_weights(weights):
                     next
                 else:
                     lineList=ls.split()
-                    rsid_list.append(lineList[0])
+                    rsid_list.append(lineList[col])
     return rsid_list
 
 
-def merge(weights,rsid_dict,prefix):
+def merge(weights,col,rsid_dict,prefix):
     command=open_zip(weights)
     header_count=0
     output=prefix + "_reformat.txt"
+    print("Writing new weights file %s\n" %output, file=sys.stderr)
     with open(output,"w") as o:
         with command as f:
             for line in f:
@@ -118,8 +121,11 @@ def merge(weights,rsid_dict,prefix):
                     header_count+=1
                 else:
                     lineList=ls.split()
-                    from_vcf=rsid_dict[lineList[0]]
-                    o.write("\t".join(lineList+from_vcf[0:2]+from_vcf[3:5])+"\n")
+                    try:
+                        from_vcf=rsid_dict[lineList[col]]
+                        o.write("\t".join(lineList+from_vcf[0:2]+from_vcf[3:5])+"\n")
+                    except KeyError:
+                        o.write("\t".join(lineList+["NA"]*4)+"\n") #rsid not in VCF
         f.close()
     o.close()
     os.system("gzip "+output) #ystem call to gzip
@@ -137,16 +143,20 @@ def main():
     
     #github package https://github.com/bioforensics/rsidx
 
+    if !exists(args.vcf):
+        sys.exit("VCF %s does not exist\n" % args.vcf,file=sys.stderr)
+    if !exists(args.rsidx):
+        sys.exit("RSIDX %s does not exist\n" % args.rsidx,file=sys.stderr)
     #index(args.vcf)
 
     #get rsids from weights file
-    rsid_list=rsid_from_weights(args.weights)
-
+    rsid_list=rsid_from_weights(args.weights,args.col)
+    
     #search vcf
     rsid_dict=search(rsid_list,args.vcf,args.rsidx)
 
     #merge new info with weights file
-    merge(args.weights,rsid_dict,args.prefix)
+    merge(args.weights,args.col,rsid_dict,args.prefix)
 
 #call main
 if __name__ == "__main__":
