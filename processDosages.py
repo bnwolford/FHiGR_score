@@ -218,7 +218,8 @@ def getDosage(region_file,bcftools_path,vcf,cpu,weight_dict,sample_id,output):
 
     except ValueError:
         print>> sys.stderr, "No markers in weight file found in VCF.\n"
-        sys.exit("Exiting program\n")
+         print >> sys.stderr, "Exiting program\n"
+        sys.exit() #exit code of 0
         
     except KeyboardInterrupt:
         print >> sys.stderr, "Caught KeyboardInterrupt.\n"
