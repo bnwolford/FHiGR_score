@@ -143,10 +143,10 @@ def main():
     
     #github package https://github.com/bioforensics/rsidx
 
-    if !exists(args.vcf):
-        sys.exit("VCF %s does not exist\n" % args.vcf,file=sys.stderr)
-    if !exists(args.rsidx):
-        sys.exit("RSIDX %s does not exist\n" % args.rsidx,file=sys.stderr)
+    if not os.path.exists(args.vcf):
+        sys.exit("VCF does not exist\n")
+    if not os.path.exists(args.rsidx):
+        sys.exit("RSIDX does not exist\n")
     #index(args.vcf)
 
     #get rsids from weights file
