@@ -125,7 +125,7 @@ def merge(weights,col,rsid_dict,prefix):
                         from_vcf=rsid_dict[lineList[col]] #look up from dictionary from vcf
                         ## handle occurence of multiple alt alleles by printing each potential entry as a newline
                         for alt_allele in from_vcf[4].split(","):
-                            o.write("\t".join(lineList+from_vcf[0:2]+[alt_allele])+"\n")
+                            o.write("\t".join(lineList+from_vcf[0:2]+[from_vcf[3]]+[alt_allele])+"\n")
                     except KeyError:
                         o.write("\t".join(lineList+["NA"]*4)+"\n") #rsid not in VCF
         f.close()
