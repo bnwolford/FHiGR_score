@@ -117,13 +117,15 @@ def merge(weights,col,rsid_dict,prefix):
                     o.write(ls+"\n")
                 elif header_count==0:
                     lineList=ls.split()
-                    o.write("\t".join(lineList+["CHR","POS","REF","ALT"])+"\n")
+                    o.write("\t".join(lineList+["CHR","POS","REF","ALT"])+"\n") #write header
                     header_count+=1
                 else:
                     lineList=ls.split()
                     try:
-                        from_vcf=rsid_dict[lineList[col]]
-                        o.write("\t".join(lineList+from_vcf[0:2]+from_vcf[3:5])+"\n")
+                        from_vcf=rsid_dict[lineList[col]] #look up from dictionary from vcf
+                        ## handle occurence of multiple alt alleles by printing each potential entry as a newline
+                        for alt_allele in from_vcf[4].split(","):
+                            o.write("\t".join(lineList+from_vcf[0:2]+[alt_allele])+"\n")
                     except KeyError:
                         o.write("\t".join(lineList+["NA"]*4)+"\n") #rsid not in VCF
         f.close()
