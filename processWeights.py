@@ -136,6 +136,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num,header_
                 if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
                     if chrom_num is not None: #only save info for chromosome of interes
                         if int(lineList[chrom])==chrom_num:
+                            print(lineList)
                             coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                             weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
                     else:
