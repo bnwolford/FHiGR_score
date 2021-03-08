@@ -27,7 +27,7 @@ optionList <- list(
   make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
-  make_option("--maintitle", type="character", default="",help="Plot title [default='']"),
+  make_option("--maintitle", type="character", default="out",help="Plot title [default='out']"),
   make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
@@ -256,18 +256,20 @@ print(paste("Data dimensions are:",dim(dat)[1],dim(dat)[2]))
 
 all<-nrow(dat)
 
+##make suer strat and pheno columns are integers
+dat[[strat_col]]<-as.integer(dat[[strat_col]])
+dat[[pheno_col]]<-as.integer(dat[[pheno_col]])
+dat[[grs_col]]<-as.numeric(dat[[grs_col]])
+
 ## To DO: check column assumptions 
 ##subset to data with stratum available
 df2<-dat[!is.na(dat[[pheno_col]])]
 print(paste("Data dimensions after removing samples with NA phenotype:", dim(df2)[1],dim(df2)[2]))
 
+
+
 #plot the prevalences across all, missing, negative, positive
 prev_by_stratum(df=df2,strat_col=strat_col,prev_col=pheno_col,out=out,main=main,ylabel=ylabel)
-
-##make suer strat and pheno columns are integers
-dat[[strat_col]]<-as.integer(dat[[strat_col]])
-dat[[pheno_col]]<-as.integer(dat[[pheno_col]])
-
 
 strat0<-nrow(df2[df2[[strat_col]]==0,])
 strat1<-nrow(df2[df2[[strat_col]]==1,])
@@ -437,7 +439,7 @@ for (q in 1:length(quantiles)){
 ### GRS dotplot
 pdf_fn<-paste(sep=".",out,"GRS.dotplot.pdf")
 png_fn<-paste(sep=".",out,"GRS.dotplot.png")
-subset$invNormGRS<-rankNorm(subset[[grs_col]])
+subset$invNormGRS<-RankNorm(subset[[grs_col]])
 subset[[strat_col]]<-as.factor(subset[[strat_col]])
 levels(subset[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
 stratum<-names(subset)[[strat_col]]
