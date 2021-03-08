@@ -137,7 +137,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,header_lines):
                         sys.exit("Coordinate must have 4 components chr:pos:ref:alt\n")
                     weight_dict[lineList[coord]]=(lineList[ea],float(lineList[weight]))
                 else: #earlier checks mean we should never hit this
-                    sys.stderr.write("Error\n")
+                    sys.exit("Error1\n")
 
     return weight_dict
 
@@ -157,57 +157,76 @@ def read_chunks(chunk_file,prefix_col):
 def  make_regions(weight_dict,chunk_list,output_prefix,num_chunk):
     """ Make a region files using weights and known chunks """
     total=len(weight_dict.keys())
+    print(weight_dict.keys())
     if total==0:
         sys.stderr.write("Weights file is empty\n")
         sys.exit()
-        
-    #open config file
+            #open config file
     config="_".join([output_prefix,"config.txt"])
     cfile=open(config,'w+')
-    for mega_chunk in chunk_list:
+    for j in range(len(chunk_list)):
+        mega_chunk=chunk_list[j]
         chunk_chrom,chunk_start,chunk_end,prefix=mega_chunk.split(":")
         vcf="".join(["/net/dumbo/home/larsf/UKB500/VCF/ukb24460_imp_",prefix,"_v3_s486743.vcf.gz"]) #need to generalize
         mini_chunk_counter=0
+        region="_".join([output_prefix,prefix,".".join([str(mini_chunk_counter),"regions.txt"])]) #new region
+        weight="_".join([output_prefix,prefix,".".join([str(mini_chunk_counter),"weights.txt"])]) #new weight
+        cfile.write("\t".join([region,weight,vcf,chunk_chrom])+"\n") #write in config
+        rfile=open(region,'w')
+        wfile=open(weight,'w')
         marker_counter=0
-        in_mega=True
-        while in_mega is True:
-            if marker_counter==0:
-                region="_".join([output_prefix,prefix,".".join([str(mini_chunk_counter),"regions.txt"])]) #new region
-                weight="_".join([output_prefix,prefix,str(mini_chunk_counter),"weights.txt"]) #new weight
-                cfile.write("\t".join([region,weight,vcf,chunk_chrom])+"\n") #write in config
-                rfile=open(region,'w')
-                wfile=open(weight,'w')
-                marker_counter+=1
-            else:
-                for entry in weight_dict.keys(): #this is an ordered dictionary
-                    #print(marker_counter)
-                    #print(mini_chunk_counter)
-                    #print(in_mega)
-                    #print(entry,chunk_chrom,chunk_start,chunk_end)
-                    chrom,pos,a1,a2=entry.split(":")
-                    if int(chrom)==int(chunk_chrom) and int(pos)>=int(chunk_start) and int(pos)<=int(chunk_end): #still in mega chunk
-                        rfile.write("\t".join([chrom,pos]) + "\n")
-                        wfile.write("\t".join(weight_dict[entry]) + "\n")
-                        del weight_dict[entry] #delete from dictionary
-                        marker_counter+=1
-                        if len(weight_dict)==0: #end of weight dictionary
-                            in_mega=False
-                            break
-                        elif marker_counter==num_chunk+1: #end of a mini chunk
-                            rfile.close()
-                            wfile.close()
-                            marker_counter=0
-                            mini_chunk_counter+=1
-                            break
-                    elif (int(chrom)!=int(chunk_chrom) or int(pos) > int(chunk_end)) or marker_counter==total: #end of mega chunk
-                        in_mega=False
-                        break
-                    else:
-                        sys.stderr.write("Error\n")
-                        break
 
+        for entry in weight_dict.keys(): #this is an ordered dictionary
+            print(marker_counter)
+            print(mini_chunk_counter)
+            print(entry,chunk_chrom,chunk_start,chunk_end)
+            chrom,pos,a1,a2=entry.split(":")
+            if int(chrom)==int(chunk_chrom) and int(pos)>=int(chunk_start) and int(pos)<=int(chunk_end): #still in mega chunk
+                rfile.write("\t".join([chrom,pos]) + "\n")
+                wfile.write("\t".join(weight_dict[entry]) + "\n")
+                print("Write %s" % entry)
+                del weight_dict[entry] #delete from dictionary
+                marker_counter+=1
+                if marker_counter==num_chunk+1: #end of a mini chunk, start new region and write files within the same mega_chunk
+                    rfile.close()
+                    wfile.close()
+                    marker_counter=0
+                    mini_chunk_counter+=1
+                    break
+            elif (int(chrom)!=int(chunk_chrom) or int(pos) > int(chunk_end)) or marker_counter==total: #end of mega chunk
+                print("%s not in %s" % (entry,mega_chunk))
+                j+=1
+                break
+
+    cfile.close()
+    clean_up(config)
     return 0
-                        
+
+
+def clean_up(config):
+    print("Clean up directory\n")
+    keep=[]
+    command=open_zip(config)
+    with command as f:
+        for line in f:
+            ls=line.rstrip()
+            lineList=ls.split()
+            if os.stat(lineList[0]).st_size==0 | os.stat(lineList[1]).st_size==0:
+                os.remove(lineList[0])
+                os.remove(lineList[1])
+            else:
+                keep.append(line)
+    f.close()
+    os.remove(config)
+    cfile=open(config,'w+')
+    print("Writing new config\n")
+    for entry in keep:
+        cfile.write(entry)
+    cfile.close()
+                
+                
+                          
+            
 #########################
 ########## MAIN #########
 #########################

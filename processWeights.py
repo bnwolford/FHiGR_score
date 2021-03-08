@@ -112,7 +112,7 @@ def open_zip(f):
                  print >> sys.stderr, "File was not given as parameter\n"
     elif ".gz" in f:
         command=gzip.open(f,"rt")
-        print >> sys.stderrr, "Opening gzipped file %s\n" % f
+        print >> sys.stderr, "Opening gzipped file %s\n" % f
     elif f == "-":
         command=sys.stdin()
     else:
@@ -133,7 +133,10 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num,header_
             if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
                 ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
-                if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
+                print(lineList)
+                if lineList[chrom]=="NA" or lineList[pos]=="NA" or lineList[ref]=="NA" or lineList[alt]=="NA": #ignore lines where info is missing
+                    next
+                elif chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
                     if chrom_num is not None: #only save info for chromosome of interes
                         if int(lineList[chrom])==chrom_num:
                             coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])

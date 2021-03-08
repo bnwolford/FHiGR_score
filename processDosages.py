@@ -30,7 +30,7 @@
 ###########################
 
 from __future__ import division
-from memory_profiler import profile
+#from memory_profiler import profile
 import argparse
 import subprocess
 import gzip
@@ -83,7 +83,8 @@ def get_settings():
     parser.add_argument('-i', '--id_file', help="File with sampleIDs in the same order as the VCF",type=str)
     parser.add_argument('-o', '--output_prefix',type=str,default="results")
     parser.add_argument("--split",help="split path",type=str,default="/usr/bin/split")
-    parser.add_argument("--tabix",help="bcftools path",type=str,default="/usr/local/bin/tabix")
+    parser.add_argument("--tabix",help="tabix path",type=str,default="/usr/local/bin/tabix")
+    parser.add_argument("--bcftools",help="bcftools path",type=str,default="/home/ubuntu/miniconda/bin/bcftools")
     parser.add_argument("-u","--cpu",help="Number of CPU cores to utilize for multiprocessing",default=8)
     args=parser.parse_args()
 
@@ -140,12 +141,14 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom,header_
             if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
                 ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
-                if chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
+                if lineList[chrom]=="NA" or lineList[pos]=="NA" or lineList[ref]=="NA" or lineList[alt]=="NA": #ignore lines where info is missing
+                  continue
+                elif chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, alt
                     if vcf_chrom is not None: #only save info for chromosome of interes
                         if int(lineList[chrom])==vcf_chrom:
                             coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                             weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
-                    else:
+                    else: #print all markers
                         coordinate=":".join([str(lineList[chrom]),str(lineList[pos]),str(lineList[ref]),str(lineList[alt])])
                         weight_dict[coordinate]=(lineList[ea],float(lineList[weight]))
                 elif coord is not None:
@@ -159,7 +162,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,vcf_chrom,header_
     return weight_dict
 
 
-def checkAllele(weight_allele, marker_line):
+def checkAllele(weight_allele, marker_line,coordinate):
     """ Converts dosages to the appropriate allele that the weight is in terms of """
     #marker line is chr, pos, snpid, ref, alt, dosages for all samples
     ref=marker_line[3]
@@ -169,15 +172,31 @@ def checkAllele(weight_allele, marker_line):
     elif weight_allele is alt:
         return np.array(marker_line[5:], dtype=np.float32)
     else:
-        print >> sys.stderr("Marker %s alleles do not match either ref or alt from VCF\n") % marker
+        print >> sys.stderr, "Weight allele %s does not match either ref or alt from VCF coordnate %s \n" % (weight_allele,coordinate)
         return np.array(None)
+    ### strand flip?
+
+def complementary(allele):
+    """ Returns complementary allele so we can check for strand flips """
+    if allele=="A":
+        return("T")
+    elif allele=="T":
+        return("A")
+    elif allele=="C":
+        return("G")
+    elif allele=="G":
+        return ("C")
+    else:
+        print >> sys.stderr, "Allele is not expected A,T,C, or G"
+        return("NA")
     
 #@profile
-def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
+def getDosage(region_file,bcftools_path,vcf,cpu,weight_dict,sample_id,output):
     # print >> sys.stderr, "Calling tabix on %s to subset markers from  %s\n" % (vcf,region_file)
     #cmd=[tabix_path, '-R',region_file , vcf]
     print >> sys.stderr, "Calling bcftools query with  %s to subset markers from  %s\n" % (vcf,region_file)
-    cmd=["/usr/local/bin/bcftools","query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
+    cmd=[bcftools_path,"query","-R",region_file,vcf,"-f","%CHROM\t%POS\t%ID\t%REF\t%ALT\t[%DS\t]\n"]
+    # if region files has duplicate coordinates the query only pulls the markers in that coordinate once
     max_marker=len(weight_dict) #max  number of markers from weight dictionary, could use to make numpy array/matrix
     #To do: could auto make a matrix and fill it with dosages to be more efficient?
     marker_count=0
@@ -187,25 +206,53 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
         f = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         with f.stdout:
             for line in iter(f.stdout.readline,b''):
-                ls=line.split()
+                ls=line.split() #lines from VCF query, can be multiple if VCF has multiallelic
                 ls[-1]=ls[-1].rstrip()
                 if ls[0] != "#": #ignore header lines
                     coord=ls[0] + ":" + ls[1] + ":" + ls[3] + ":" + ls[4]
                     alt_coord=ls[0] + ":" + ls[1] + ":" + ls[4] + ":" + ls[3] #flip ref and alt in case weight file is in that order
+                    coord_comp=ls[0] + ":" + ls[1] + ":" + complementary(ls[3]) + ":" + complementary(ls[4])
+                    alt_coord_comp=ls[0] + ":" + ls[1] + ":" + complementary(ls[4]) + ":" + complementary(ls[3])
                     if coord in weight_dict:
-                        marker_line=checkAllele(weight_dict[coord][0],ls) #returns numpy array of dosages
+                        marker_line=checkAllele(weight_dict[coord][0],ls,coord) #returns numpy array of dosages
                         if marker_line.any() != None:
                             query_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[coord][1]
+                            print(coord)
                             marker_count+=1
+                        else:
+                             print >> sys.stderr, "%s doesn't match alleles in the VCF\n" % (coord)
                     elif alt_coord in weight_dict:
-                        marker_line=checkAllele(weight_dict[alt_coord][0],ls) #returns numpy array of dosages
+                        marker_line=checkAllele(weight_dict[alt_coord][0],ls,alt_coord) #returns numpy array of dosages
                         if marker_line.any() != None:
                             query_results.append(marker_line)
                             weight_list[marker_count]=weight_dict[alt_coord][1]
+                            print(alt_coord)
                             marker_count+=1
+                        else:
+                              print >> sys.stderr, "%s doesn't match alleles in the VCF\n" % (alt_coord)
+                    elif coord_comp in weight_dict:
+                         marker_line=checkAllele(complementary(weight_dict[coord_comp][0]),ls,coord_comp) #returns numpy array of dosages
+                         if marker_line.any() != None:
+                             query_results.append(marker_line)
+                             weight_list[marker_count]=weight_dict[coord_comp][1]
+                             print(coord_comp)
+                             marker_count+=1
+                         else:
+                             print >> sys.stderr, "%s doesn't match alleles in the VCF\n" % (coord_comp)
+                    elif alt_coord_comp in weight_dict:
+                        marker_line=checkAllele(complementary(weight_dict[alt_coord_comp][0]),ls,alt_coord_comp) #returns numpy array of dosages
+                        if marker_line.any() != None:
+                            query_results.append(marker_line)
+                            weight_list[marker_count]=weight_dict[alt_coord_comp][1]
+                            print(alt_coord_comp)
+                            marker_count+=1
+                        else:
+                            print >> sys.stderr, "%s doesn't match alleles in the VCF\n" % (alt_coord_comp)
+                                            
                     else:
-                        print >> sys.stderr, "Neither %s or %s are in the weight file but are present in the region file\n" % (coord,alt_coord)
+                        print >> sys.stderr, "Neither %s or %s or the strand flipped %s or %s are in the weight file but are present in the VCF query results with the region file\n" % (coord,alt_coord,coord_comp,alt_coord_comp)
+        
         #To do: could do the multiplication and sum to per-sample scores each time rather that saving to query_list
         query_results=np.vstack(query_results) #turn list of numpy arrays into 2D array
         weight_list=weight_list[~np.isnan(weight_list)] #remove any NAs from initializing array with NA
@@ -213,6 +260,11 @@ def getDosage(region_file,tabix_path,vcf,cpu,weight_dict,sample_id,output):
         sample_score_dict = {sample_id[x]: score for x, score in enumerate(dosage_scores_sum)}
         print >> sys.stderr, "%d of %d markers in the weight file found in VCF. Note: Region file may have fewer coordinates than weights file, and the region file was used to query the VCF.\n" % (marker_count,max_marker)
         #f.wait()
+
+    except ValueError:
+        print>> sys.stderr, "No markers in weight file found in VCF.\n"
+        print >> sys.stderr, "Exiting program\n"
+        sys.exit() #exit code of 0
         
     except KeyboardInterrupt:
         print >> sys.stderr, "Caught KeyboardInterrupt.\n"
@@ -262,7 +314,7 @@ def main():
         empty_weights(sample_id,args.output_prefix)
 
     #Calculate weighted dosages per individual, Make sure to check allele, print output 
-    getDosage(args.region_file,args.tabix,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
+    getDosage(args.region_file,args.bcftools,args.single_vcf,args.cpu,weight_dict,sample_id,args.output_prefix)
         
         
 ##### Call main
