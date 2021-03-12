@@ -9,11 +9,11 @@ Table of Contents
 # Introduction
 
 ## Family History informed Genetic Risk score (FHiGR score)
-This project began as a way to create a unified score that combines genetic risk and family history—-a family history informed genetic risk score (FHiGRS). 
+This project began as a way to create a unified score that combines genetic risk and family history—-a family history informed genetic risk score (FHiGRS).   
 Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can estimate a GRS in your study.  
 Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.  
 
-In evaluating this score, we determined models with family history and GRS separately would be optimal. The FHiGRS moniker has persisted as the project evolved. These scripts allow for generating GRS from weights, creating data visualizations, and evaluating statistical models. They are generalized where noted. Deprecated scripts are noted below for reference.
+In evaluating this score, we determined models with family history and GRS separately would be optimal. The FHiGRS moniker has persisted as the project evolved. These scripts allow for generating GRS from weights, creating data visualizations, and evaluating statistical models. They are generalized where noted. Deprecated scripts are noted below for reference.  
 
 ## Acknowledgements
 Code base authored by Dr. Sarah Graham, Kimmo Pääkkönen, Dr. Ida Surakka, and Brooke Wolford
