@@ -263,14 +263,14 @@ qsub<-subset #rename for ease of already written code
   
   
 qsub$old<-qsub[[part_age]]>50 #change age if needed
-qsub$age<-2019-qsub[[birthYear]]
+qsub$age<-2021-qsub[[birthYear]]
 qsub$age_std<-scale(qsub$age)
 qsub$part_age_sq<-qsub[[part_age]]^2
 part_age_sq<-which(names(qsub)=="part_age_sq")
 qsub$part_age_std<-scale(qsub[[part_age]]) #standardize so comparable to binary and inverse normalized GRS
 qsub$part_age_sq_std<-scale(qsub[[part_age_sq]])
 qsub$birthYear_std<-scale(qsub[[birthYear]])
-qsub$invNormGRS<-rankNorm(qsub[[grs]]) #inverse normalize GRS
+qsub$invNormGRS<-RankNorm(qsub[[grs]]) #inverse normalize GRS
 part_age_sq_std<-which(names(qsub)=="part_age_sq_std")
 part_age_std<-which(names(qsub)=="part_age_std")
 birthYear_std<-which(names(qsub)=="birthYear_std")
