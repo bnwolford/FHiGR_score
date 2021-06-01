@@ -133,7 +133,7 @@ def read_weights(weight_file,chrom,pos,ref,alt,coord,ea,weight,chrom_num,header_
             if (header_lines is not None and counter > header_lines) or (header_lines is None and line[0]!="#"):
                 ls=line.rstrip()
                 lineList=ls.split() #assumes whitespace delimiter, space or tab
-                print(lineList)
+                #print(lineList)
                 if lineList[chrom]=="NA" or lineList[pos]=="NA" or lineList[ref]=="NA" or lineList[alt]=="NA": #ignore lines where info is missing
                     next
                 elif chrom is not None: #because of argument check function we can trust this means we are making our own coordinate with chrom, pos, ref, al1t
