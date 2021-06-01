@@ -9,10 +9,11 @@ Table of Contents
 # Introduction
 
 ## Family History informed Genetic Risk score (FHiGR score)
-
-
+This project began as a way to create a unified score that combines genetic risk and family history—-a family history informed genetic risk score (FHiGRS).   
 Step 1. Using weights from Genome Wide Association Study (GWAS) summary statistics you can estimate a GRS in your study.  
 Step 2. Using self-reported family history you can better stratfiy samples with FHiGR score.  
+
+In evaluating this score, we determined models with family history and GRS separately would be optimal. The FHiGRS moniker has persisted as the project evolved. These scripts allow for generating GRS from weights, creating data visualizations, and evaluating statistical models. They are generalized where noted. Deprecated scripts are noted below for reference.  
 
 ## Acknowledgements
 Code base authored by Dr. Sarah Graham, Kimmo Pääkkönen, Dr. Ida Surakka, and Brooke Wolford
@@ -27,7 +28,7 @@ Weights can be downloaded [here](http://www.broadcvdi.org/informational/data). W
 ### Dependencies 
 bcftools, qctool v2, split, python2, python3
 python packages: argparse, glob, math, multiprocessing, numpy, os, pandas, random, scipy, string, subprocess, sys, time, tempfile, memory-profiler
-R packages: optparse, data.table  
+R packages: optparse, data.table, and more
 
 ### File format descriptions 
 
@@ -81,14 +82,16 @@ Sum across chunks of samples and scores to create one GRS per sample. Inverse no
 Checks number of rows and columns for each file in a provided file. Useful when running massively parallelized/chunked job arrays.
 
 ### FHiGR_raincloud.R
-Requires R_rainclouds.R
+Creates visualizations of GRS distirbutions. Requires R_rainclouds.R
 
 ### FHiGR_prevalence.R
-Requires helperFunctions.R.
+Generalized to create visualations of disease prevalence binned by GRS quantiles and stratified by a provided variable. Requires helperFunctions.R.
 
 ### FHiGR_ROC.R
+Create ROC curves for FHiGRS and GRS.
 
-### FHiGR_score.R
+### FHiGR_model.R
+Generalized to check various association models using family history and genetic risk as predictors.
 
 # :no_entry_sign: Deprecated
 
@@ -122,3 +125,5 @@ cut=`seq 0.8 0.01 0.99 | tr "\n" "," | sed 's/,$//g'` ; Rscript FHiGR_score.R -f
 ``
 
 # Change Log
+
+* Updates March 2021 for R version 4.0.4 and package updates 

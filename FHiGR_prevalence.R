@@ -27,6 +27,7 @@ optionList <- list(
   make_option(c("-o","--output"),type="character",help="Prefix for output files [defualt=FHiGR]",default="FHiGR"),
   make_option(c("-d","--digits"),type="numeric",help="Number of decimal digits to print in tables [default=3]",default=3),
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
+  make_option("--fhigrs",type="logical",default=FALSE,help="Plot FHiGRS plots [default=FALSE]"),
   make_option("--maintitle", type="character", default="out",help="Plot title [default='out']"),
   make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
@@ -69,6 +70,7 @@ ylabel<-arguments$options$ylabel
 legend<-arguments$options$legend
 dig<-arguments$option$digits
 header<-arguments$options$header
+fhigrs_logic<-arguments$options$fhigrs
 ##source relevant code from code base
 source(paste0(arguments$options$codeDir,"helperFunctions.R")) ##will be used to calculate FHiGRS
 
@@ -196,6 +198,14 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,all,strat0
                      xlab(xlab) + ylab(ylab)  + theme(plot.caption=element_text(hjust=0.5)) +
                      scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
                dev.off()
+               
+               pdf(file=paste(sep=".",out,name,"landscape","pdf"),height=5,width=6,useDingbats=FALSE)
+               print(ggplot(x,aes(x=frac,y=prev,color=as.factor(stratum))) + geom_point() + theme_bw() + geom_errorbar(aes(ymin=x$lb,ymax=x$ub)) +
+                       scale_color_manual(values=c("dark blue","goldenrod3"),name=legend) +
+                       labs(title=main,caption=bquote(N[negative]~"="~.(strat0)~","~N[positive]~"="~.(strat1))) +
+                       xlab(xlab) + ylab(ylab)  + theme(plot.caption=element_text(hjust=0.5),legend.position="bottom") +
+                       scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
+               dev.off()
            }
         )
     } else { #all data,  plotting hacks to keep plot size the same as stratum
@@ -212,6 +222,16 @@ plotting<-function(dat,out,qtiles,stratum=FALSE,main,xlab,ylab,legend,all,strat0
                      xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) +
                      coord_cartesian(ylim=c(0,ymax)) +
                      theme(plot.caption=element_text(hjust=0.5),legend.text=element_text(color = "white"), legend.title = element_text(color = "white"), legend.key = element_rect(fill = "white")))
+               dev.off()
+               
+               pdf(file=paste(sep=".",out,name,"landscape","pdf"),height=5,width=6,useDingbats=FALSE)
+               print(ggplot(x,aes(x=frac,y=prev,color=as.factor(1))) + geom_point() +
+                       scale_color_manual(values=c("grey"),guide=guide_legend(override.aes=list(color="white")),name=legend) +
+                       geom_errorbar(aes(ymin=x$lb,ymax=x$ub),color="grey")  +
+                       theme_bw() + labs(title=main,caption=bquote(N~"="~.(all))) +
+                       xlab(xlab) + ylab(ylab) + scale_x_continuous(breaks=breaks) +
+                       coord_cartesian(ylim=c(0,ymax)) +
+                       theme(legend.position="bottom",plot.caption=element_text(hjust=0.5),legend.text=element_text(color = "white"), legend.title = element_text(color = "white"), legend.key = element_rect(fill = "white")))
                dev.off()
            }
        )
@@ -366,74 +386,75 @@ write.table(format(adf,digits=dig),file=file_name,quote=FALSE,row.names=FALSE,se
 plotting(adf,paste(sep="_",out,"all"),quantiles,FALSE,main,xlabel,ylabel,legend,all,strat0,strat1,ydf)
 
 ################## Estimate FHiGRS and plot prevalence per quantile  ###################
-
-for (q in 1:length(quantiles)){
-    fdf<-estimate_FHiGRS(sdf[sdf$q==quantiles[q],],subset,strat_col,grs_col) #use sdf from prev_quantile_per_stratum object to estimate FHiGRS
-    fhigrs_col<-which(names(fdf)=="FHIGRS")
-    
-    logic_list<-c("TRUE","FALSE")
-    label_list<-c("quantileFirst","stratifyFirst")
-    #recalculate prevalences per quantile bin this time using FHiGRS instead of GRS
-    for (i in c(1,2)){ #across stratify logic
-        fobj<-prev_per_quantile_stratum(qtile=quantiles[q],df=fdf,GRS_col=fhigrs_col,strat_col=strat_col,prev_col=pheno_col,qfirst=logic_list[i])
-        for (j in c(1,2)) { #across stratum
-            list_length<-length(fobj$prev[j,])
-            prev<-fobj$prev[j,][-list_length]
-            se<-fobj$se[j,][-list_length]
-            n<-fobj$n[j,][-list_length]
-            tiles<-fobj$tiles[j,][-1]
-            lower_tile<-fobj$tiles[j,][1:list_length-1]
-            upper_tile<-fobj$tiles[j,][2:list_length]
-            percents<-fobj$percents[-1]
-            bins<-rep(quantiles[q],list_length-1)
-            strat<-rep(j-1,list_length-1)
-            if (j==1) {
-                fobj_df<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
-            } else {
-                fobj_df<-rbind(fobj_df,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
-            }
-        }
-        ##make prevalence plot 
-        name<-as.character(unique(fobj_df$q))
-        fobj_df$frac<-as.numeric(sub("%","",fobj_df$percents)) #convert factor percentages to numeric
-        fobj_df<-fobj_df[fobj_df$frac!=1.00,]
-        fobj_df$ub<-fobj_df$prev+(1.96*fobj_df$se)
-        fobj_df$lb<-fobj_df$prev-(1.96*fobj_df$se)
-        ymax<-max(fobj_df$prev+1.96*fobj_df$se) #this may need to be changed
-        fobj_df$stratum<-as.factor(fobj_df$stratum)
-        levels(fobj_df$stratum)<-c("Negative","Positive")
-        if (unique(fobj_df$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=fobj_df$frac}
-        pdf(file=paste(sep=".",out,"FHiGRS",label_list[i],name,"pdf"),height=5,width=5,useDingbats=FALSE)
-        print(ggplot(fobj_df,aes(x=frac,y=prev,color=stratum)) + geom_point() + theme_bw() +
-            geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
-            scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-            labs(title=main) + xlab(xlabel) + ylab(ylabel)  +
-            scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
-        dev.off()
-    }
-    ##make dot plot 
-    fdf[[strat_col]]<-as.factor(fdf[[strat_col]])
-    levels(fdf[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
-    stratum<-names(fdf)[[strat_col]]
-    fdf_sub<-fdf[,c("FHIGRS",stratum),with=FALSE]
-    pdf_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.pdf")
-    png_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.png")
-    ##make pdf
-    pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
-    print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
-          geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
-          labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
-    dev.off()
-    ##make png
-    png(file=png_fn,height=1000,width=1200,res=200)
-    print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
-          geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
-          scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
-          theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
-          labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
-    dev.off()
+if (fhigrs_logic){
+  for (q in 1:length(quantiles)){
+      fdf<-estimate_FHiGRS(sdf[sdf$q==quantiles[q],],subset,strat_col,grs_col) #use sdf from prev_quantile_per_stratum object to estimate FHiGRS
+      fhigrs_col<-which(names(fdf)=="FHIGRS")
+      
+      logic_list<-c("TRUE","FALSE")
+      label_list<-c("quantileFirst","stratifyFirst")
+      #recalculate prevalences per quantile bin this time using FHiGRS instead of GRS
+      for (i in c(1,2)){ #across stratify logic
+          fobj<-prev_per_quantile_stratum(qtile=quantiles[q],df=fdf,GRS_col=fhigrs_col,strat_col=strat_col,prev_col=pheno_col,qfirst=logic_list[i])
+          for (j in c(1,2)) { #across stratum
+              list_length<-length(fobj$prev[j,])
+              prev<-fobj$prev[j,][-list_length]
+              se<-fobj$se[j,][-list_length]
+              n<-fobj$n[j,][-list_length]
+              tiles<-fobj$tiles[j,][-1]
+              lower_tile<-fobj$tiles[j,][1:list_length-1]
+              upper_tile<-fobj$tiles[j,][2:list_length]
+              percents<-fobj$percents[-1]
+              bins<-rep(quantiles[q],list_length-1)
+              strat<-rep(j-1,list_length-1)
+              if (j==1) {
+                  fobj_df<-data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL)
+              } else {
+                  fobj_df<-rbind(fobj_df,data.frame(prev=prev,se=se,n=n,tiles=tiles,q=bins,stratum=strat,percents=percents,row.names=NULL))
+              }
+          }
+          ##make prevalence plot 
+          name<-as.character(unique(fobj_df$q))
+          fobj_df$frac<-as.numeric(sub("%","",fobj_df$percents)) #convert factor percentages to numeric
+          fobj_df<-fobj_df[fobj_df$frac!=1.00,]
+          fobj_df$ub<-fobj_df$prev+(1.96*fobj_df$se)
+          fobj_df$lb<-fobj_df$prev-(1.96*fobj_df$se)
+          ymax<-max(fobj_df$prev+1.96*fobj_df$se) #this may need to be changed
+          fobj_df$stratum<-as.factor(fobj_df$stratum)
+          levels(fobj_df$stratum)<-c("Negative","Positive")
+          if (unique(fobj_df$q) > 10) {breaks=c(0,10,20,30,40,50,60,70,80,90,100)} else {breaks=fobj_df$frac}
+          pdf(file=paste(sep=".",out,"FHiGRS",label_list[i],name,"pdf"),height=5,width=5,useDingbats=FALSE)
+          print(ggplot(fobj_df,aes(x=frac,y=prev,color=stratum)) + geom_point() + theme_bw() +
+              geom_errorbar(aes(ymin=fobj_df$lb,ymax=fobj_df$ub)) +
+              scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+              labs(title=main) + xlab(xlabel) + ylab(ylabel)  +
+              scale_x_continuous(breaks=breaks) + coord_cartesian(ylim=c(0,ymax)))
+          dev.off()
+      }
+      ##make dot plot 
+      fdf[[strat_col]]<-as.factor(fdf[[strat_col]])
+      levels(fdf[[strat_col]])<-c("Negative","Positive") #change labels from 0/1
+      stratum<-names(fdf)[[strat_col]]
+      fdf_sub<-fdf[,c("FHIGRS",stratum),with=FALSE]
+      pdf_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.pdf")
+      png_fn<-paste(sep=".",out,quantiles[q],"FHiGRS.dotplot.png")
+      ##make pdf
+      pdf(file=pdf_fn,height=5,width=6,useDingbats=FALSE)
+      print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+            geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
+            scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+            theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
+            labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw() + scale_y_continuous(NULL, breaks = NULL))
+      dev.off()
+      ##make png
+      png(file=png_fn,height=1000,width=1200,res=200)
+      print(ggplot(fdf_sub,aes(x=FHIGRS,color=get(stratum),fill=get(stratum)))  +
+            geom_dotplot(method="histodot",binwidth=1/38,dotsize=0.5) +
+            scale_fill_manual(values=c("goldenrod3","darkblue"),name=legend) + scale_color_manual(values=c("goldenrod3","darkblue"),name=legend) +
+            theme(axis.text.y=element_blank(), axis.ticks.y=element_blank()) +
+            labs(title=main,ylab="Density",xlab="FHiGR Score") + theme_bw()  + scale_y_continuous(NULL, breaks = NULL))
+      dev.off()
+  }
 }
 
 ### GRS dotplot
@@ -469,12 +490,15 @@ print(wilcox.test(grs_pos,grs_neg)$p.value)
 print(wilcox.test(grs_pos,grs_neg)$statistic)
 #grs same as inverse normalized grs 
 
-#do this ttste but it will be very biased
-fhigrs_pos<-fdf[fdf[[strat_col]]=="Positive"]$FHIGRS
-fhigrs_neg<-fdf[fdf[[strat_col]]=="Negative"]$FHIGRS
-print("FHiGRS")
-print(var(fhigrs_pos))
-print(var(fhigrs_neg))
-print(wilcox.test(fhigrs_pos,fhigrs_neg)$p.value)
-print(wilcox.test(fhigrs_pos,fhigrs_neg)$statistic)
+if (fhigrs_logic){
+  #do this test but it will be very biased
+  fhigrs_pos<-fdf[fdf[[strat_col]]=="Positive"]$FHIGRS
+  fhigrs_neg<-fdf[fdf[[strat_col]]=="Negative"]$FHIGRS
+  print("FHiGRS")
+  print(var(fhigrs_pos))
+  print(var(fhigrs_neg))
+  print(wilcox.test(fhigrs_pos,fhigrs_neg)$p.value)
+  print(wilcox.test(fhigrs_pos,fhigrs_neg)$statistic)
+}
+
 ##To do: fix size of dotplots, weird function of binwidth 
