@@ -29,7 +29,7 @@ optionList <- list(
   make_option(c("-r","--header"),type="logical",default=FALSE,help="If phenotype file has a header [default=FALSE]"),
   make_option("--fhigrs",type="logical",default=FALSE,help="Plot FHiGRS plots [default=FALSE]"),
   make_option("--maintitle", type="character", default="out",help="Plot title [default='out']"),
-  make_option("--xlabel",type="character",default="GRS",help="X-axis label [default='GRS']"),
+  make_option("--xlabel",type="character",default="PGS",help="X-axis label [default='[PGS']"),
   make_option("--ylabel",type="character",default="Prevalence",help="Y-axis label [default='Prevalence']"),
   make_option("--legend",type="character",default="Binary stratum",help="Legend title which is stratum [default='Binary stratum']"),
   make_option("--codeDir",type="character",default="/FHiGR_score/",help="Directory for repository for sourcing other code in code base [default=/FHiGR_score/]")
