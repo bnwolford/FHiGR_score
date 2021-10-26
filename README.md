@@ -81,6 +81,8 @@ Sum across chunks of samples and scores to create one GRS per sample. Inverse no
 ### checkDim.R
 Checks number of rows and columns for each file in a provided file. Useful when running massively parallelized/chunked job arrays.
 
+`Rscript checkDim.R`
+
 ### FHiGR_raincloud.R
 Creates visualizations of GRS distirbutions. Requires R_rainclouds.R
 
