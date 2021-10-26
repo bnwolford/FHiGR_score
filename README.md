@@ -86,6 +86,8 @@ Checks number of rows and columns for each file in a provided file. Useful when 
 ### FHiGR_raincloud.R
 Creates visualizations of GRS distirbutions. Requires R_rainclouds.R
 
+`Rscript FHiGR_raincloud.R`
+
 ### FHiGR_prevalence.R
 Generalized to create visualations of disease prevalence binned by GRS quantiles and stratified by a provided variable. Requires helperFunctions.R.
 
